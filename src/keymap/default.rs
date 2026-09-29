@@ -118,6 +118,7 @@ pub static SHARED: &[DefaultBinding] = &[
     b("r", "tree::rename", FileTree),
     b("m", "tree::move", FileTree),
     b("d", "tree::delete", FileTree),
+    b("shift-p", "tree::preview", FileTree),
     // The tree as an input device: hand the selection to the shell.
     b("y", "tree::yank_path", FileTree),
     b("shift-y", "tree::yank_path_absolute", FileTree),

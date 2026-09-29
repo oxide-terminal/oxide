@@ -83,10 +83,33 @@ impl Render for DragLabel {
     }
 }
 
-/// A right-click menu on a tree row.
+/// A right-click menu on a tree row, or on the root: its name in the
+/// header, or the empty space under the rows.
 struct TreeContextMenu {
-    ix: usize,
+    ix: Option<usize>,
     position: gpui::Point<gpui::Pixels>,
+}
+
+const ROW_HEIGHT: f32 = 24.0;
+/// Blank space kept at the bottom of the panel, so a tree that fills it
+/// still has somewhere to drop (or right-click) for the root.
+const ROOT_DROP_SPACE: f32 = 36.0;
+/// A drag held this close to the top or bottom of the rows scrolls them.
+const DRAG_SCROLL_EDGE: f32 = 28.0;
+const DRAG_SCROLL_TICK: Duration = Duration::from_millis(16);
+
+/// How far a drag held at `y` scrolls the rows each tick, in pixels:
+/// nothing in the middle of the list, faster the deeper into an edge (or
+/// past it). Negative is towards the top.
+fn drag_scroll_step(y: f32, top: f32, bottom: f32) -> f32 {
+    let depth = if y < top + DRAG_SCROLL_EDGE {
+        y - (top + DRAG_SCROLL_EDGE)
+    } else if y > bottom - DRAG_SCROLL_EDGE {
+        y - (bottom - DRAG_SCROLL_EDGE)
+    } else {
+        return 0.0;
+    };
+    (depth * 0.4).clamp(-16.0, 16.0)
 }
 
 /// How often the git decorations refresh on their own. Filesystem events
@@ -128,6 +151,9 @@ pub struct FileTree {
     git_refresh_scheduled: bool,
     git_refresh_running: bool,
     context_menu: Option<TreeContextMenu>,
+    /// Pixels per tick the rows scroll while a drag is held near an edge.
+    drag_scroll: f32,
+    drag_scrolling: bool,
 }
 
 impl EventEmitter<TreeEvent> for FileTree {}
@@ -167,6 +193,8 @@ impl FileTree {
             git_refresh_scheduled: false,
             git_refresh_running: false,
             context_menu: None,
+            drag_scroll: 0.0,
+            drag_scrolling: false,
         };
 
         if let Some((watcher, mut rx)) = watch::create() {
@@ -776,6 +804,10 @@ impl FileTree {
             }
             _ => self.root.clone(),
         };
+        self.prompt_add(parent, cx);
+    }
+
+    fn prompt_add(&mut self, parent: PathBuf, cx: &mut Context<Self>) {
         let dir = parent
             .strip_prefix(&self.root)
             .ok()
@@ -841,6 +873,95 @@ impl FileTree {
                 self.move_entry(target, dest, cx);
             }
         }
+    }
+
+    fn on_preview(&mut self, _: &TreePreview, _w: &mut Window, cx: &mut Context<Self>) {
+        if let Some(row) = self.selected_row()
+            && row.kind == RowKind::Entry
+            && !row.is_dir
+            && crate::markdown::is_markdown(&row.path)
+        {
+            cx.emit(TreeEvent::PreviewMarkdown(row.path.clone()));
+        }
+    }
+
+    /// A drag over the rows: near their top or bottom edge they scroll, so
+    /// a row that's out of view can still be dropped on.
+    fn on_drag_move(
+        &mut self,
+        event: &gpui::DragMoveEvent<TreeDrag>,
+        _w: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (at, bounds) = (event.event.position, event.bounds);
+        // Beside the drawer the drag is on its way to a terminal pane.
+        self.drag_scroll = if at.x >= bounds.left() && at.x <= bounds.right() {
+            drag_scroll_step(at.y.into(), bounds.top().into(), bounds.bottom().into())
+        } else {
+            0.0
+        };
+        if self.drag_scroll == 0.0 || self.drag_scrolling {
+            return;
+        }
+        // A timer, not the mouse events: a pointer held still keeps scrolling.
+        self.drag_scrolling = true;
+        cx.spawn(async move |tree, cx| {
+            loop {
+                let Ok(timer) =
+                    tree.update(cx, |_, cx| cx.background_executor().timer(DRAG_SCROLL_TICK))
+                else {
+                    break;
+                };
+                timer.await;
+                if !tree
+                    .update(cx, |tree, cx| tree.drag_scroll_tick(cx))
+                    .unwrap_or(false)
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    /// One step of the drag scroll; false once the drag has left the edge
+    /// or ended.
+    fn drag_scroll_tick(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.drag_scroll == 0.0 || !cx.has_active_drag() {
+            self.drag_scroll = 0.0;
+            self.drag_scrolling = false;
+            return false;
+        }
+        let handle = self.scroll.0.borrow().base_handle.clone();
+        let viewport = f32::from(handle.bounds().size.height);
+        // As far as the last row sitting on top of the root's drop space.
+        let content = self.visible.len() as f32 * ROW_HEIGHT + ROOT_DROP_SPACE;
+        let mut offset = handle.offset();
+        let y = f32::from(offset.y) - self.drag_scroll;
+        offset.y = px(y.clamp((viewport - content).min(0.0), 0.0));
+        handle.set_offset(offset);
+        cx.notify();
+        true
+    }
+
+    fn open_context_menu(
+        &mut self,
+        ix: Option<usize>,
+        event: &gpui::MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        window.focus(&self.focus_handle);
+        if let Some(ix) = ix {
+            self.select(ix, cx);
+        }
+        self.context_menu = Some(TreeContextMenu {
+            ix,
+            position: event.position,
+        });
+        // A row's menu, not also the one for the space it sits on.
+        cx.stop_propagation();
+        cx.notify();
     }
 
     /// A row dropped on another: into a directory, or beside a file.
@@ -1115,7 +1236,7 @@ impl FileTree {
             rows.push(
                 div()
                     .id(ix)
-                    .h(px(24.0))
+                    .h(px(ROW_HEIGHT))
                     .w_full()
                     .flex()
                     .flex_row()
@@ -1149,13 +1270,7 @@ impl FileTree {
                     .on_mouse_down(
                         MouseButton::Right,
                         cx.listener(move |tree, event: &gpui::MouseDownEvent, window, cx| {
-                            window.focus(&tree.focus_handle);
-                            tree.select(ix, cx);
-                            tree.context_menu = Some(TreeContextMenu {
-                                ix,
-                                position: event.position,
-                            });
-                            cx.notify();
+                            tree.open_context_menu(Some(ix), event, window, cx);
                         }),
                     )
                     // The whole name on hover, for when the row cut it short.
@@ -1217,14 +1332,16 @@ impl FileTree {
         let Some(menu) = &self.context_menu else {
             return div().into_any_element();
         };
-        let Some(row) = self
-            .visible
-            .get(menu.ix)
-            .filter(|r| r.kind == RowKind::Entry)
-            .cloned()
-        else {
-            return div().into_any_element();
+        // No row: the root itself.
+        let (path, is_dir, is_root) = match menu.ix {
+            Some(ix) => match self.visible.get(ix).filter(|r| r.kind == RowKind::Entry) {
+                Some(row) => (row.path.clone(), row.is_dir, false),
+                None => return div().into_any_element(),
+            },
+            None => (self.root.clone(), true, true),
         };
+        let ix = menu.ix.unwrap_or(0);
+        let is_markdown = !is_dir && crate::markdown::is_markdown(&path);
         let theme = &self.theme;
         let panel_bg = blend(theme.background, gpui::black(), 0.2);
         let border = blend(theme.foreground, theme.background, 0.8);
@@ -1233,7 +1350,12 @@ impl FileTree {
 
         // Keep the menu on screen when the click lands near an edge.
         let viewport = window.viewport_size();
-        let (menu_w, menu_h) = (200.0, 210.0);
+        let items = match (is_root, is_dir, is_markdown) {
+            (true, ..) => 3,
+            (_, true, _) | (_, _, true) => 8,
+            _ => 7,
+        };
+        let (menu_w, menu_h) = (200.0, items as f32 * 28.0 + 24.0);
         let x = f32::from(menu.position.x).min(f32::from(viewport.width) - menu_w - 8.0);
         let y = f32::from(menu.position.y).min(f32::from(viewport.height) - menu_h - 8.0);
 
@@ -1247,10 +1369,6 @@ impl FileTree {
                 .hover(move |s| s.bg(hover_bg))
                 .child(label)
         };
-        let path = row.path.clone();
-        let is_dir = row.is_dir;
-        let is_markdown = !is_dir && crate::markdown::is_markdown(&path);
-
         let backdrop = div()
             .w(viewport.width)
             .h(viewport.height)
@@ -1317,7 +1435,7 @@ impl FileTree {
                             }),
                         ))
                     })
-                    .when(is_dir, |d| {
+                    .when(is_dir && !is_root, |d| {
                         d.child(item("tree-menu-root", "Set as tree root").on_mouse_down(
                             MouseButton::Left,
                             cx.listener({
@@ -1330,22 +1448,38 @@ impl FileTree {
                             }),
                         ))
                     })
-                    .child(
-                        item("tree-menu-insert", "Insert path at prompt").on_mouse_down(
+                    .when(is_dir, |d| {
+                        d.child(item("tree-menu-add", "New file or folder…").on_mouse_down(
                             MouseButton::Left,
                             cx.listener({
                                 let path = path.clone();
                                 move |tree, _: &gpui::MouseDownEvent, _w, cx| {
                                     tree.context_menu = None;
-                                    cx.emit(TreeEvent::InsertPath {
-                                        path: path.clone(),
-                                        absolute: false,
-                                    });
-                                    cx.notify();
+                                    // Open, so what's added shows up.
+                                    tree.expand_dir(path.clone(), cx);
+                                    tree.prompt_add(path.clone(), cx);
                                 }
                             }),
-                        ),
-                    )
+                        ))
+                    })
+                    .when(!is_root, |d| {
+                        d.child(
+                            item("tree-menu-insert", "Insert path at prompt").on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener({
+                                    let path = path.clone();
+                                    move |tree, _: &gpui::MouseDownEvent, _w, cx| {
+                                        tree.context_menu = None;
+                                        cx.emit(TreeEvent::InsertPath {
+                                            path: path.clone(),
+                                            absolute: false,
+                                        });
+                                        cx.notify();
+                                    }
+                                }),
+                            ),
+                        )
+                    })
                     .child(item("tree-menu-copy", "Copy path").on_mouse_down(
                         MouseButton::Left,
                         cx.listener({
@@ -1359,17 +1493,26 @@ impl FileTree {
                             }
                         }),
                     ))
-                    .child(item("tree-menu-move", "Move…").on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener({
-                            let ix = menu.ix;
-                            move |tree, _: &gpui::MouseDownEvent, window, cx| {
+                    .when(!is_root, |d| {
+                        d.child(item("tree-menu-rename", "Rename…").on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |tree, _: &gpui::MouseDownEvent, window, cx| {
                                 tree.context_menu = None;
                                 tree.select(ix, cx);
-                                tree.on_move(&TreeMove, window, cx);
-                            }
-                        }),
-                    ))
+                                tree.on_rename(&TreeRename, window, cx);
+                            }),
+                        ))
+                        .child(
+                            item("tree-menu-move", "Move…").on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |tree, _: &gpui::MouseDownEvent, window, cx| {
+                                    tree.context_menu = None;
+                                    tree.select(ix, cx);
+                                    tree.on_move(&TreeMove, window, cx);
+                                }),
+                            ),
+                        )
+                    })
                     .child(div().h(px(1.0)).my_1().bg(border))
                     .child(item("tree-menu-finder", REVEAL_LABEL).on_mouse_down(
                         MouseButton::Left,
@@ -1381,7 +1524,25 @@ impl FileTree {
                                 cx.notify();
                             }
                         }),
-                    )),
+                    ))
+                    .when(!is_root, |d| {
+                        d.child(
+                            item("tree-menu-delete", "Delete")
+                                .text_color(theme.ansi[1])
+                                .on_mouse_down(
+                                    MouseButton::Left,
+                                    cx.listener(
+                                        move |tree, _: &gpui::MouseDownEvent, window, cx| {
+                                            tree.context_menu = None;
+                                            tree.select(ix, cx);
+                                            // Same y/n confirmation `d` asks for.
+                                            window.focus(&tree.focus_handle);
+                                            tree.on_delete(&TreeDelete, window, cx);
+                                        },
+                                    ),
+                                ),
+                        )
+                    }),
             );
 
         gpui::deferred(
@@ -1491,6 +1652,7 @@ impl Render for FileTree {
             .on_action(cx.listener(Self::on_rename))
             .on_action(cx.listener(Self::on_move))
             .on_action(cx.listener(Self::on_delete))
+            .on_action(cx.listener(Self::on_preview))
             .on_action(cx.listener(Self::on_escape))
             .on_action(cx.listener(Self::on_down))
             .on_action(cx.listener(Self::on_up))
@@ -1511,6 +1673,12 @@ impl Render for FileTree {
                     .flex_none()
                     .px_3()
                     .py_2()
+                    .on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(|tree, event: &gpui::MouseDownEvent, window, cx| {
+                            tree.open_context_menu(None, event, window, cx);
+                        }),
+                    )
                     // Linux: the window's ☰ menu button floats over this
                     // corner; the root name steps aside so they don't overlap.
                     .when(self.app_menu_clearance, |d| {
@@ -1526,9 +1694,17 @@ impl Render for FileTree {
                     cx.processor(Self::render_rows),
                 )
                 .flex_1()
+                .pb(px(ROOT_DROP_SPACE))
                 .track_scroll(self.scroll.clone())
+                .on_drag_move(cx.listener(Self::on_drag_move))
                 // Below the last row: the root itself. A row under the
-                // pointer takes the drop first.
+                // pointer takes the drop, or the right-click, first.
+                .on_mouse_down(
+                    MouseButton::Right,
+                    cx.listener(|tree, event: &gpui::MouseDownEvent, window, cx| {
+                        tree.open_context_menu(None, event, window, cx);
+                    }),
+                )
                 .on_drop(cx.listener(|tree, drag: &TreeDrag, _w, cx| {
                     let root = tree.root.clone();
                     tree.move_entry(drag.path.clone(), root, cx);
@@ -1608,6 +1784,17 @@ mod tests {
             .collect();
         // main.rs matches; src is kept as its ancestor; docs subtree drops.
         assert_eq!(names, vec!["src", "main.rs"]);
+    }
+
+    #[test]
+    fn a_drag_scrolls_the_rows_only_near_their_edges() {
+        let (top, bottom) = (100.0, 500.0);
+        assert_eq!(drag_scroll_step(300.0, top, bottom), 0.0);
+        // Towards the top near the top, faster the closer; capped past it.
+        assert!(drag_scroll_step(120.0, top, bottom) < 0.0);
+        assert!(drag_scroll_step(105.0, top, bottom) < drag_scroll_step(120.0, top, bottom));
+        assert_eq!(drag_scroll_step(-400.0, top, bottom), -16.0);
+        assert!(drag_scroll_step(490.0, top, bottom) > 0.0);
     }
 
     #[test]

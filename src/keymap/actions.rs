@@ -149,6 +149,7 @@ oxide_actions! {
     TreeRename       => "tree::rename",         "Tree: Rename",              "File Tree", [], FileTree;
     TreeMove         => "tree::move",           "Tree: Move…",               "File Tree", ["mv", "relocate"], FileTree;
     TreeDelete       => "tree::delete",         "Tree: Delete to Trash",     "File Tree", ["remove"], FileTree;
+    TreePreview      => "tree::preview",        "Tree: Preview Markdown",    "File Tree", ["render", "md"], FileTree;
     TreeEscape       => "tree::escape",         "Tree: Dismiss",             "File Tree", [], FileTree;
     TreeYankPath     => "tree::yank_path",      "Tree: Insert Path at Prompt", "File Tree", ["paste", "relative"], FileTree;
     TreeYankAbsolute => "tree::yank_path_absolute", "Tree: Insert Absolute Path at Prompt", "File Tree", ["paste"], FileTree;

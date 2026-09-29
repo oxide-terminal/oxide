@@ -427,6 +427,8 @@ pub struct TabsConfig {
     pub enabled: bool,
     /// A small position number at the left of each tab — the `n` in `cmd-n`.
     pub show_numbers: bool,
+    /// What closing a workspace's last tab does.
+    pub close_last: CloseLastTab,
 }
 
 impl Default for TabsConfig {
@@ -434,8 +436,20 @@ impl Default for TabsConfig {
         Self {
             enabled: true,
             show_numbers: true,
+            close_last: CloseLastTab::default(),
         }
     }
+}
+
+/// Closing a workspace's last tab either takes the workspace with it (and
+/// the window with the last workspace), or leaves the workspace with a
+/// fresh tab in the home directory.
+#[derive(Debug, Clone, Copy, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CloseLastTab {
+    #[default]
+    Workspace,
+    NewTab,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -1037,5 +1051,13 @@ mod tabs_config_tests {
         assert_eq!(c.editor.open_in, OpenIn::Split);
         assert_eq!(c.markdown.preview_in, OpenIn::Split);
         assert!(toml::from_str::<Config>("[editor]\nopen_in = \"window\"\n").is_err());
+    }
+
+    #[test]
+    fn closing_the_last_tab_closes_the_workspace_by_default() {
+        assert_eq!(Config::default().tabs.close_last, CloseLastTab::Workspace);
+        let c: Config = toml::from_str("[tabs]\nclose_last = \"new_tab\"\n").unwrap();
+        assert_eq!(c.tabs.close_last, CloseLastTab::NewTab);
+        assert!(toml::from_str::<Config>("[tabs]\nclose_last = \"window\"\n").is_err());
     }
 }

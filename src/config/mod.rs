@@ -243,6 +243,8 @@ tab      = "number"           # number (2/5) | name — the current-tab chip bes
 [tabs]
 enabled      = true           # show the tab bar (View → Toggle Tab Bar flips it for the session)
 show_numbers = true           # small position number on each tab — the n in cmd-n
+close_last   = "workspace"    # workspace | new_tab — closing a workspace's last tab closes the
+                              # workspace, or leaves it with a fresh tab in your home directory
 
 [notifications]
 enabled             = true    # notify when a command finishes in a pane you aren't watching

@@ -13,10 +13,58 @@ write for users: what changed and why it matters, not which files moved.
 
 ### Added
 
+<<<<<<< HEAD
 - `bell = "sound"` now plays the system bell sound on Linux, through
   `canberra-gtk-play` or `paplay`. With neither installed, it falls back to
   the visual flash.
   
+=======
+- Dragging a file or directory in the file tree scrolls the tree when the
+  drag nears its top or bottom edge, so a destination that's out of view is
+  one drag away instead of a drag, a scroll, and another drag.
+- The file tree keeps a strip of empty space at the bottom of its panel. A
+  tree full of directories used to leave nowhere to drop for the root; now
+  there always is, wherever the tree is scrolled to.
+- The file tree's right-click menu does more. On a file or directory it adds
+  **Rename…** and **Delete** (to the Trash, after the same `y` the `d` key
+  asks for); on a directory, **New file or folder…** inside it. Right-click
+  the root's name at the top, or the empty space under the rows, to add to
+  the root.
+- `P` (`shift-p`) in the file tree previews the selected markdown file, the
+  same as **Preview markdown** on right-click. It's the `tree::preview`
+  action, if you'd rather bind another key (`p` alone is "select parent").
+- Selecting text with the mouse scrolls the terminal when the drag reaches
+  the pane's first or last row, and keeps scrolling for as long as you hold
+  it there — faster once you're past the pane's edge — so a selection can
+  run longer than the screen.
+- Each workspace in the drawer has a `×` that deletes it, straight away.
+  `d` still asks for a `y` first.
+- `tabs.close_last = "workspace" | "new_tab"` chooses what closing a
+  workspace's last tab does. `"workspace"` (the default, and how it has
+  always worked) closes the workspace with it, and the window with the last
+  workspace. `"new_tab"` keeps the workspace and leaves it a fresh tab in
+  your home directory.
+- Double-click the drawer's right edge to put it back to `tree.width`.
+
+### Fixed
+
+- A tab's `×` closes the whole tab when it's the workspace's last one, as it
+  does for any other tab. It used to close only the focused pane of a split.
+- A new workspace is named `workspace 1` again once nothing else has that
+  name, and otherwise takes the lowest number that's free. The number used
+  to keep counting up for as long as the window was open, so deleting
+  `workspace 1` and adding another gave you `workspace 2`.
+- A drag in a program that tracks the mouse (neovim, tmux, lazygit) keeps
+  going when the pointer leaves the pane: the program hears about the
+  nearest cell, and about the release. It used to hear nothing past the
+  pane's edge, so a neovim selection stopped scrolling there and the
+  program could be left thinking the button was still down. Drags are also
+  reported once per cell rather than sixty times a second on macOS.
+- A mouse selection that ends outside the pane it started in now ends there.
+  The pane used to miss the release and keep selecting the next time the
+  pointer crossed it with a button down.
+
+>>>>>>> 8cb4e5c (added: drag file/dir scrolls tree, empty space in tree at bottom, more)
 ## [0.7.0] - 2026-09-28
 
 ### Added

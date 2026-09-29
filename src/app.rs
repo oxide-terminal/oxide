@@ -12,7 +12,9 @@ use gpui::{
     ParentElement, Render, StatefulInteractiveElement, Styled, Subscription, Window, div, px,
 };
 
-use crate::config::schema::{ColorsConfig, OpenIn, StatusBarPosition, StatusBarTab, TitlebarMode};
+use crate::config::schema::{
+    CloseLastTab, ColorsConfig, OpenIn, StatusBarPosition, StatusBarTab, TitlebarMode,
+};
 use crate::config::theme::parse_hex;
 use crate::config::{self, Config, Theme};
 use crate::git::{GitStatus, read_git_status};
@@ -207,7 +209,6 @@ pub struct Oxide {
     app_menu: Option<AppMenu>,
     /// The bundled icon for the About panel, decoded once per window.
     app_icon: std::sync::Arc<gpui::Image>,
-    next_ws_number: usize,
     /// Every live pane across all workspaces and tabs.
     panes: HashMap<PaneId, gpui::Entity<TerminalPane>>,
     next_pane_id: PaneId,
@@ -543,6 +544,16 @@ fn clamp_drawer_width(width: f32, window: f32) -> f32 {
     width.clamp(160.0, (window - 240.0).max(160.0))
 }
 
+/// The name a workspace gets until it's given one: `workspace N`, with the
+/// lowest number no workspace in `names` is using.
+fn default_ws_name<'a>(names: impl Iterator<Item = &'a str>) -> String {
+    let taken: Vec<&str> = names.collect();
+    (1..)
+        .map(|n| format!("workspace {n}"))
+        .find(|name| !taken.contains(&name.as_str()))
+        .unwrap()
+}
+
 /// Where the item at `ix` sits after the one at `from` is moved to `to`.
 fn index_after_move(ix: usize, from: usize, to: usize) -> usize {
     if ix == from {
@@ -773,7 +784,6 @@ impl Oxide {
                 gpui::ImageFormat::Png,
                 include_bytes!("../assets/linux/icons/hicolor/256x256/apps/oxide.png").to_vec(),
             )),
-            next_ws_number: 1,
             panes: HashMap::new(),
             next_pane_id: 0,
             pane_subscriptions: HashMap::new(),
@@ -1389,8 +1399,22 @@ impl Oxide {
             self.close_tab_at(wix, tix, window, cx);
             return true;
         }
+        self.close_last_tab(wix, window, cx)
+    }
 
-        // Last tab too: the workspace goes with it.
+    /// Close a workspace's only tab. `tabs.close_last` decides what is
+    /// left: a fresh tab in the home directory, or nothing — the workspace
+    /// goes too, and false says it was the last one (so the window should).
+    fn close_last_tab(&mut self, wix: usize, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.config.tabs.close_last == CloseLastTab::NewTab {
+            let cwd = home_dir().unwrap_or_else(|| PathBuf::from("/"));
+            let id = self.create_pane(cwd, window, cx);
+            self.workspaces[wix]
+                .tabs
+                .push(TabState::new(Node::Leaf(id), id));
+            self.close_tab_at(wix, 0, window, cx);
+            return true;
+        }
         if self.workspaces.len() > 1 {
             self.remove_workspace_at(wix, window, cx);
             return true;
@@ -1445,7 +1469,8 @@ impl Oxide {
         if self.workspaces.len() == 1 {
             let cwd = home_dir().unwrap_or_else(|| PathBuf::from("/"));
             let id = self.create_pane(cwd, window, cx);
-            let name = self.next_ws_name();
+            // The one it replaces doesn't hold its number.
+            let name = default_ws_name(std::iter::empty());
             let fresh = Workspace {
                 name,
                 persist: false,
@@ -4913,7 +4938,7 @@ impl Oxide {
                                     if let Some((wix, tix)) = this.locate_pane(close_target) {
                                         if this.workspaces[wix].tabs.len() > 1 {
                                             this.close_tab_at(wix, tix, window, cx);
-                                        } else if !this.close_pane(close_target, window, cx) {
+                                        } else if !this.close_last_tab(wix, window, cx) {
                                             window.remove_window();
                                         }
                                     }
@@ -4948,10 +4973,8 @@ impl Oxide {
 
     // --- Workspaces ---
 
-    fn next_ws_name(&mut self) -> String {
-        let n = self.next_ws_number;
-        self.next_ws_number += 1;
-        format!("workspace {n}")
+    fn next_ws_name(&self) -> String {
+        default_ws_name(self.workspaces.iter().map(|w| w.name.as_str()))
     }
 
     fn new_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -5030,15 +5053,6 @@ impl Oxide {
                     tabs,
                     active_tab,
                 });
-            }
-            for w in &self.workspaces {
-                if let Some(n) = w
-                    .name
-                    .strip_prefix("workspace ")
-                    .and_then(|r| r.parse::<usize>().ok())
-                {
-                    self.next_ws_number = self.next_ws_number.max(n + 1);
-                }
             }
         }
         if self.workspaces.is_empty() {
@@ -5167,7 +5181,24 @@ impl Oxide {
                     .when(w.persist, |d| {
                         // Pin: this workspace survives restarts.
                         d.child(div().flex_none().text_color(accent).child("\u{f08d}"))
-                    }),
+                    })
+                    .child(
+                        div()
+                            .id(("workspace-close", ix))
+                            .flex_none()
+                            .text_color(dim)
+                            .cursor_pointer()
+                            .on_mouse_down(
+                                gpui::MouseButton::Left,
+                                cx.listener(move |this, _: &gpui::MouseDownEvent, window, cx| {
+                                    cx.stop_propagation();
+                                    // No y/n here: the click was aimed.
+                                    this.ws_confirm_delete = false;
+                                    this.remove_workspace_at(ix, window, cx);
+                                }),
+                            )
+                            .child("×"),
+                    ),
             );
         }
 
@@ -6494,9 +6525,15 @@ impl Render for Oxide {
                                 .cursor(gpui::CursorStyle::ResizeLeftRight)
                                 .on_mouse_down(
                                     gpui::MouseButton::Left,
-                                    cx.listener(|this, _: &gpui::MouseDownEvent, _w, cx| {
+                                    cx.listener(|this, ev: &gpui::MouseDownEvent, _w, cx| {
                                         cx.stop_propagation();
-                                        this.drawer_drag = true;
+                                        if ev.click_count > 1 {
+                                            // Double-click: back to `tree.width`.
+                                            this.drawer_width = None;
+                                            this.write_window_state();
+                                        } else {
+                                            this.drawer_drag = true;
+                                        }
                                         cx.notify();
                                     }),
                                 ),
@@ -6615,6 +6652,15 @@ mod reorder_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn a_new_workspace_takes_the_lowest_free_number() {
+        let name = |names: &[&str]| default_ws_name(names.iter().copied());
+        // Named workspaces, and ones deleted since, hold no number.
+        assert_eq!(name(&["api", "site", "notes"]), "workspace 1");
+        assert_eq!(name(&["api", "workspace 1"]), "workspace 2");
+        assert_eq!(name(&["workspace 1", "workspace 3"]), "workspace 2");
     }
 
     #[test]

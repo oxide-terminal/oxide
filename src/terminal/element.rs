@@ -6,10 +6,11 @@ use alacritty_terminal::term::TermMode;
 use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::vte::ansi::{Color as AnsiColor, CursorShape};
 use gpui::{
-    App, BorderStyle, Bounds, Element, ElementId, Entity, Font, FontFallbacks, FontStyle,
-    FontWeight, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, PaintQuad,
-    Pixels, Point, ShapedLine, SharedString, StrikethroughStyle, Style, TextRun, UnderlineStyle,
-    Window, fill, point, px, quad, relative, size,
+    App, BorderStyle, Bounds, DispatchPhase, Element, ElementId, Entity, Font, FontFallbacks,
+    FontStyle, FontWeight, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId,
+    MouseButton, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, ShapedLine, SharedString,
+    StrikethroughStyle, Style, TextRun, UnderlineStyle, Window, fill, point, px, quad, relative,
+    size,
 };
 
 use super::TerminalPane;
@@ -108,12 +109,36 @@ impl Element for TerminalElement {
         &mut self,
         _id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
+        bounds: Bounds<Pixels>,
         _request_layout: &mut (),
         layout: &mut GridLayout,
         window: &mut Window,
         cx: &mut App,
     ) {
+        // The pane's own mouse handlers stop at its edges. A drag doesn't,
+        // whether it's our selection or a program's: outside them it
+        // scrolls the view, and ends on release.
+        let pane = self.pane.read(cx);
+        if pane.selecting || pane.reporting.is_some() {
+            let pane = self.pane.clone();
+            window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                if phase == DispatchPhase::Capture
+                    && event.pressed_button == Some(MouseButton::Left)
+                    && !bounds.contains(&event.position)
+                {
+                    pane.update(cx, |pane, cx| pane.on_mouse_move(event, window, cx));
+                }
+            });
+            let pane = self.pane.clone();
+            window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
+                if phase == DispatchPhase::Capture
+                    && event.button == MouseButton::Left
+                    && !bounds.contains(&event.position)
+                {
+                    pane.update(cx, |pane, cx| pane.on_mouse_up(event, window, cx));
+                }
+            });
+        }
         for q in layout.bg_quads.drain(..) {
             window.paint_quad(q);
         }

@@ -297,6 +297,16 @@ pub struct TerminalPane {
     pub blink_show: bool,
     last_input: Instant,
     selecting: bool,
+    /// The cell last reported to a program tracking the mouse, while the
+    /// button it was told about is still down: its drag, not ours.
+    reporting: Option<(usize, usize)>,
+    /// Where the press that began the selection landed.
+    select_from_y: f32,
+    /// Where a selection drag is being held, while that is at or past the
+    /// pane's top or bottom edge: the view scrolls towards it until it
+    /// comes away.
+    autoscroll: Option<gpui::Point<Pixels>>,
+    autoscrolling: bool,
     scroll_accum: f32,
     bell_until: Option<Instant>,
     search: Option<SearchState>,
@@ -463,6 +473,10 @@ impl TerminalPane {
             blink_show: true,
             last_input: Instant::now(),
             selecting: false,
+            reporting: None,
+            select_from_y: 0.0,
+            autoscroll: None,
+            autoscrolling: false,
             scroll_accum: 0.0,
             bell_until: None,
             search: None,
@@ -2257,6 +2271,8 @@ impl TerminalPane {
         }
         if self.mouse_mode_active(event.modifiers.shift) {
             self.send_mouse_report(0, col, row, true, &event.modifiers);
+            self.reporting = Some((col, row));
+            cx.notify();
             return;
         }
         let ty = match event.click_count {
@@ -2277,6 +2293,7 @@ impl TerminalPane {
             term.selection = Some(selection);
             drop(term);
             self.selecting = true;
+            self.select_from_y = event.position.y.into();
             cx.notify();
         }
     }
@@ -2313,7 +2330,7 @@ impl TerminalPane {
         if event.pressed_button != Some(MouseButton::Left) {
             return;
         }
-        let Some((point, side, col, row)) = self.grid_point(event.position) else {
+        let Some((_, _, col, row)) = self.grid_point(event.position) else {
             return;
         };
         if self.mouse_mode_active(event.modifiers.shift) {
@@ -2327,26 +2344,106 @@ impl TerminalPane {
                         .intersects(TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION)
                 })
                 .unwrap_or(false);
-            if drag {
+            // Once per cell, as the protocol has it: macOS repeats a held
+            // drag at 60Hz. Past the pane's edge (the element listens
+            // window-wide during a drag) it's the nearest cell.
+            if drag && self.reporting.is_some() && self.reporting != Some((col, row)) {
                 self.send_mouse_report(32, col, row, true, &event.modifiers);
+                self.reporting = Some((col, row));
             }
             return;
         }
-        if self.selecting
-            && let Some(session) = &self.session
-        {
-            let mut term = session.term.lock();
-            if let Some(selection) = term.selection.as_mut() {
-                selection.update(point, side);
-            }
-            drop(term);
-            cx.notify();
+        if self.selecting {
+            self.drag_selection(event.position, cx);
         }
+    }
+
+    /// A selection drag, in the pane or out of it (the element listens
+    /// window-wide while one is under way): the selection follows the
+    /// pointer, and at the pane's top or bottom edge, or past it, the view
+    /// scrolls towards it.
+    fn drag_selection(&mut self, position: gpui::Point<Pixels>, cx: &mut Context<Self>) {
+        let lines = self.autoscroll_lines(position);
+        self.autoscroll = (lines != 0).then_some(position);
+        self.extend_selection(position, 0, cx);
+        if lines == 0 || self.autoscrolling {
+            return;
+        }
+        // A timer, not the mouse events: a pointer held still keeps scrolling.
+        self.autoscrolling = true;
+        cx.spawn(async move |this, cx| {
+            loop {
+                let Ok(timer) = this.update(cx, |_, cx| {
+                    cx.background_executor().timer(Duration::from_millis(50))
+                }) else {
+                    break;
+                };
+                timer.await;
+                if !this
+                    .update(cx, |pane, cx| pane.autoscroll_tick(cx))
+                    .unwrap_or(false)
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    /// One step of the selection scroll; false once the pointer has come
+    /// away from the edge or the button is up.
+    fn autoscroll_tick(&mut self, cx: &mut Context<Self>) -> bool {
+        if let (true, Some(position)) = (self.selecting, self.autoscroll) {
+            self.extend_selection(position, self.autoscroll_lines(position), cx);
+            return true;
+        }
+        self.autoscroll = None;
+        self.autoscrolling = false;
+        false
+    }
+
+    fn autoscroll_lines(&self, position: gpui::Point<Pixels>) -> i32 {
+        let Some(layout) = self.last_layout else {
+            return 0;
+        };
+        autoscroll_lines(
+            position.y.into(),
+            self.select_from_y,
+            &layout,
+            self.config.window.padding.y,
+        )
+    }
+
+    /// Scroll the view by `scroll` lines, then stretch the selection to the
+    /// cell nearest `position`.
+    fn extend_selection(
+        &mut self,
+        position: gpui::Point<Pixels>,
+        scroll: i32,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some((_, side, col, row)), Some(session)) = (self.grid_point(position), &self.session)
+        else {
+            return;
+        };
+        let mut term = session.term.lock();
+        if scroll != 0 {
+            term.scroll_display(Scroll::Delta(scroll));
+        }
+        // Not `grid_point`'s line: that one is from the last painted frame,
+        // before this scroll.
+        let line = row as i32 - term.grid().display_offset() as i32;
+        if let Some(selection) = term.selection.as_mut() {
+            selection.update(GridPoint::new(Line(line), Column(col)), side);
+        }
+        drop(term);
+        cx.notify();
     }
 
     fn on_mouse_up(&mut self, event: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
         if self.selecting {
             self.selecting = false;
+            self.autoscroll = None;
             if let Some(session) = &self.session
                 && let Some(text) = session.term.lock().selection_to_string()
                 && !text.is_empty()
@@ -2362,6 +2459,9 @@ impl TerminalPane {
                 }
             }
             return;
+        }
+        if self.reporting.take().is_some() {
+            cx.notify();
         }
         let Some((_, _, col, row)) = self.grid_point(event.position) else {
             return;
@@ -2439,6 +2539,34 @@ impl TerminalPane {
                 cx.notify();
             }
         }
+    }
+}
+
+/// Lines a selection drag held at `y` scrolls the view each tick: up (into
+/// the scrollback) on the pane's first row, down on its last, and more the
+/// further past the pane it is. A drag that began at `from_y` on one of
+/// those rows doesn't scroll there: selecting along the top row shouldn't
+/// move it away. `padding` is the gap between the pane's edge and its rows.
+fn autoscroll_lines(y: f32, from_y: f32, layout: &LastLayout, padding: f32) -> i32 {
+    let (top, bottom) = (
+        f32::from(layout.bounds.top()),
+        f32::from(layout.bounds.bottom()),
+    );
+    let (first_row, last_row) = (
+        top + padding + layout.cell_height,
+        bottom - padding - layout.cell_height,
+    );
+    let rows_past = |distance: f32| (1 + (distance / layout.cell_height.max(1.0)) as i32).min(8);
+    if y < top {
+        rows_past(top - y)
+    } else if y > bottom {
+        -rows_past(y - bottom)
+    } else if y < first_row && from_y >= first_row {
+        1
+    } else if y > last_row && from_y <= last_row {
+        -1
+    } else {
+        0
     }
 }
 
@@ -2788,6 +2916,35 @@ mod search_tests {
             }
         }
         assert!(RegexSearch::new(&re.pattern("foo(")).is_err());
+    }
+
+    #[test]
+    fn a_selection_dragged_past_the_pane_scrolls_towards_the_pointer() {
+        let layout = LastLayout {
+            bounds: gpui::Bounds::new(
+                gpui::point(gpui::px(0.0), gpui::px(100.0)),
+                gpui::size(gpui::px(800.0), gpui::px(400.0)),
+            ),
+            cell_width: 8.0,
+            cell_height: 20.0,
+            display_offset: 0,
+        };
+        // A drag that began mid-pane (y 300), with 8px of padding.
+        let lines = |y: f32| autoscroll_lines(y, 300.0, &layout, 8.0);
+        assert_eq!(lines(300.0), 0);
+        // Above: into the scrollback, faster the further out, up to a cap.
+        assert_eq!(lines(95.0), 1);
+        assert_eq!(lines(55.0), 3);
+        assert_eq!(lines(-5000.0), 8);
+        assert_eq!(lines(505.0), -1);
+        // Reaching the first or last row is enough; the one next to it isn't.
+        assert_eq!(lines(120.0), 1);
+        assert_eq!(lines(480.0), -1);
+        assert_eq!(lines(135.0), 0);
+        assert_eq!(lines(465.0), 0);
+        // Unless the drag began on that row.
+        assert_eq!(autoscroll_lines(485.0, 480.0, &layout, 8.0), 0);
+        assert_eq!(autoscroll_lines(505.0, 480.0, &layout, 8.0), -1);
     }
 
     #[test]

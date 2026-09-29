@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/main.webp" alt="Oxide Terminal: the file tree drawer with its workspaces panel, tabs above a terminal running cargo build and cargo test, and a git-aware status bar" />
+  <img src="assets/screenshots/main.webp" alt="Oxide Terminal: the file tree drawer with its workspaces panel, two tabs above three split panes running git status, cargo test and cargo run, and a git-aware status bar" />
 </p>
 
 Oxide is a GPU-rendered terminal built on [GPUI](https://www.gpui.rs) (Zed's UI framework) and
@@ -82,10 +82,15 @@ Oxide never writes to your dotfiles. Full instructions are in the
 
 ## A closer look
 
+<p align="center">
+  <img src="assets/screenshots/demo.webp" alt="A minute in Oxide: the file tree driven from the keyboard, a markdown preview, a path sent from the tree to the prompt, a file dragged into a directory, the file finder opening Neovim, splits, tabs, the command palette and theme picker, and workspaces" /><br/>
+  <sub><b>A minute in Oxide</b> — the tree, a markdown preview, the file finder, splits, tabs, the palette and theme picker, workspaces.</sub>
+</p>
+
 <table>
   <tr>
-    <td width="50%"><img src="assets/screenshots/splits.webp" alt="Two split panes: Neovim editing a file on the left, a local HTTP server logging requests on the right" /><br/><sub><b>Splits</b> — a file opened from the tree in <code>$EDITOR</code>, a dev server beside it.</sub></td>
-    <td width="50%"><img src="assets/screenshots/command-palette.webp" alt="The command palette filtered to drawer actions, each listed with its key binding" /><br/><sub><b>Command palette</b> (<code>cmd-shift-p</code>) — every action, fuzzy-searchable, with its binding.</sub></td>
+    <td width="50%"><img src="assets/screenshots/splits.webp" alt="Three split panes: git status on the left, cargo test above cargo run on the right" /><br/><sub><b>Splits</b> — the shell on the left, <code>cargo test</code> above <code>cargo run</code> beside it.</sub></td>
+    <td width="50%"><img src="assets/screenshots/command-palette.webp" alt="The command palette listing every action, each with its key binding" /><br/><sub><b>Command palette</b> (<code>cmd-shift-p</code>) — every action, fuzzy-searchable, with its binding.</sub></td>
   </tr>
   <tr>
     <td><img src="assets/screenshots/theme-picker.webp" alt="The theme picker listing presets with colour swatches, the window repainted in the selected oxide theme" /><br/><sub><b>Theme picker</b> (<code>cmd-alt-t</code>) — repaints the whole window as you move through it.</sub></td>
@@ -103,14 +108,17 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
 - **File tree drawer** — follows the focused pane, so switching splits re-roots it to
   that shell's directory. Modeless vim navigation (`j`/`k`/`gg`/`G`, nvim-tree style `h`/`l`),
   type-to-filter with `/`, and file operations: `a` add, `r` rename, `m` move, `d` delete
-  (to Trash) — or drag a row onto a directory to move it there. Drag the drawer's edge to
-  resize it.
+  (to Trash) — or drag a row onto a directory to move it there; the tree scrolls when the
+  drag nears its top or bottom, and the empty strip under the rows is the root. Drag the
+  drawer's edge to resize it, double-click it to go back to `tree.width`.
   Dims gitignored files, watches the filesystem, and follows the shell's `cd` automatically.
 - **The tree/terminal seam** — `y` inserts the selected path at the prompt, quoted and
   relative; `cmd-click` a `path:line:col` in output to open it in `$EDITOR` at that line
   (nvim, VS Code, emacs, Sublime, Helix dialects built in); rows are coloured by git status;
   `cmd-p` fuzzy-finds any file under the root; `cmd-shift-r` reveals the shell's directory;
-  right-click a row to re-root, copy, or reveal in Finder / your file manager — or, on a `.md` file, preview it
+  right-click a row to re-root, copy, rename, move, delete, or reveal in Finder / your file
+  manager — a directory, the root's name, or the empty space under the rows to add a file or
+  folder there — or, on a `.md` file, preview it (`P` from the keyboard)
   rendered in a new tab or split (`markdown.preview_in`; full CommonMark and GitHub markdown, with
   tables and highlighted code with click-to-copy);
   drag rows or drop files onto a pane. A file opened while the pane is busy in an editor gets a tab
@@ -172,9 +180,12 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
   `ctrl-w ,` to rename one (names survive with pinned workspaces), drag tabs to reorder,
   `cmd-shift-t` reopens the last closed one. Each tab carries its number
   (`tabs.show_numbers`), and the whole bar can be hidden — View → Toggle Tab Bar, or
-  `tabs.enabled = false` — with the status bar still showing which tab you're on.
+  `tabs.enabled = false` — with the status bar still showing which tab you're on. Closing
+  a workspace's last tab closes the workspace, or with `tabs.close_last = "new_tab"` leaves
+  it a fresh tab in your home directory.
 - **Workspaces** — named sets of tabs and splits, tmux-session style, managed from the
-  drawer below the file tree (`a` add, `r` rename, `d` delete, `p` pin, drag to reorder);
+  drawer below the file tree (`a` add, `r` rename, `d` or a row's `×` delete, `p` pin,
+  drag to reorder);
   `cmd-alt-1..9` jump straight to one. Temporary by
   default; pinned ones survive restarts, restoring layout, tabs, splits, and each
   pane's directory with fresh shells.
@@ -184,7 +195,8 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
   the shell, close the pane, or restart with backoff (and a breaker after five quick
   exits). `e` in the workspaces panel edits every pane's command at once;
   `--no-startup-commands` or shift at launch restores the layout without running any.
-- **The details** — window size/position persistence, `cmd-click` to open URLs, copy-on-select option, font size at runtime
+- **The details** — window size/position persistence, `cmd-click` to open URLs, a mouse
+  selection that scrolls the view when dragged to the pane's top or bottom, copy-on-select option, font size at runtime
   (`cmd +/-/0`), configurable bell, a `[cursor]` section (block / bar / underline, blink
   rate, unfocused look — and vim's per-mode DECSCUSR shapes are honoured), a font
   fallback list for CJK and emoji, a "2,340 lines above" pill while scrolled up, `cmd-k`
@@ -247,8 +259,9 @@ The `ctrl-w` chords are the same everywhere. Where macOS uses `cmd`, Linux uses
 | `cmd-shift-o` (`ctrl-shift-o`) | reveal in Finder / the file manager |
 | `c` / `-` | re-root at selection / at parent (cd's the shell too) |
 | `/` | filter (`esc` clears) |
-| `a` / `r` / `m` / `d` | add (`dir/` with trailing slash) / rename / move / delete to Trash |
-| drag a row | onto a directory: move it there; onto a pane: insert its path |
+| `a` / `r` / `m` / `d` | add (`dir/` with trailing slash) / rename / move / delete to Trash — also on right-click |
+| `P` | preview a markdown file |
+| drag a row | onto a directory: move it there; under the last row: to the root; onto a pane: insert its path |
 | `I` / `R` | toggle hidden / refresh |
 | `esc` | dismiss input → clear filter → back to terminal |
 
@@ -277,7 +290,7 @@ The `ctrl-w` chords are the same everywhere. Where macOS uses `cmd`, Linux uses
 |---|---|
 | `j` / `k` | move selection |
 | `enter` / `o` | switch to workspace |
-| `a` / `r` / `d` | add / rename / delete (`y` confirms) — also on right-click |
+| `a` / `r` / `d` | add / rename / delete (`y` confirms) — also on right-click; `×` on a row deletes without asking |
 | drag a row | reorder |
 | `p` | pin — persist this workspace across restarts |
 | `e` | edit every pane's startup command — also on right-click |
@@ -330,6 +343,7 @@ tab      = "number"           # number | name — the current-tab chip
 [tabs]
 enabled      = true           # false hides the tab bar
 show_numbers = true           # small position number on each tab
+close_last   = "workspace"    # workspace | new_tab — what closing the last tab leaves
 
 [prompt]
 enabled = false               # keep your own prompt (starship, p10k, ...)
