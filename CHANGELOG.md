@@ -13,12 +13,10 @@ write for users: what changed and why it matters, not which files moved.
 
 ### Added
 
-<<<<<<< HEAD
 - `bell = "sound"` now plays the system bell sound on Linux, through
   `canberra-gtk-play` or `paplay`. With neither installed, it falls back to
-  the visual flash.
-  
-=======
+  the visual flash. ([(#4)](https://github.com/oxide-terminal/oxide/pull/4), 
+  thanks [@agustux](https://github.com/agustux) for contributing!)
 - Dragging a file or directory in the file tree scrolls the tree when the
   drag nears its top or bottom edge, so a destination that's out of view is
   one drag away instead of a drag, a scroll, and another drag.
@@ -64,7 +62,6 @@ write for users: what changed and why it matters, not which files moved.
   The pane used to miss the release and keep selecting the next time the
   pointer crossed it with a button down.
 
->>>>>>> 8cb4e5c (added: drag file/dir scrolls tree, empty space in tree at bottom, more)
 ## [0.7.0] - 2026-09-28
 
 ### Added
