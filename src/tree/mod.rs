@@ -1028,9 +1028,8 @@ impl FileTree {
         self.scan_dir(parent, cx);
     }
 
-    /// The footer line: a label, the text either side of the caret when
-    /// something is being typed, and a hint.
-    fn footer_text(&self) -> Option<(String, Option<(String, String)>, String)> {
+    /// See [`FooterText`].
+    fn footer_text(&self) -> Option<FooterText> {
         match &self.input {
             Some(InputMode::Filter) => {
                 let (before, after) = self.filter.split();
@@ -1208,6 +1207,10 @@ const REVEAL_LABEL: &str = if cfg!(target_os = "macos") {
 } else {
     "Reveal in File Manager"
 };
+
+/// The footer line: a label, the text either side of the caret when
+/// something is being typed, and a hint.
+type FooterText = (String, Option<(String, String)>, String);
 
 impl FileTree {
     fn render_context_menu(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {

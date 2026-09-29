@@ -11,6 +11,12 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+### Added
+
+- `bell = "sound"` now plays the system bell sound on Linux, through
+  `canberra-gtk-play` or `paplay`. With neither installed, it falls back to
+  the visual flash.
+  
 ## [0.7.0] - 2026-09-28
 
 ### Added

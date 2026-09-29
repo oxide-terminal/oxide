@@ -177,6 +177,8 @@ const DEFAULT_CONFIG_FILE: &str = r##"# Oxide configuration.
 # Font and color changes apply live; [shell] and [prompt] changes apply to
 # newly started sessions.
 
+#bell = "none"                # none | sound | visual
+
 [font]
 family      = "JetBrainsMono Nerd Font Mono"
                               # or a list: the rest are fallbacks for CJK/emoji,

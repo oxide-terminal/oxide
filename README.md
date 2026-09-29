@@ -410,10 +410,9 @@ with zero shell cooperation. Platform differences are confined to a handful of
   and it's re-run on restore. `on_exit` needs shell integration with zsh or
   bash; other shells get the command typed in and nothing more.
 - Left/right Option can't be distinguished; `option_as_meta` treats `left`/`right` as `both`.
-- Linux: `bell = "sound"` falls back to the visual flash; there's no in-place
-  self-update (the pill opens the release page); `window.titlebar` is ignored — the
-  compositor owns decorations, and under a compositor without server-side
-  decorations (GNOME) the window has none.
+- Linux: there's no in-place self-update (the pill opens the release page);
+  `window.titlebar` is ignored — the compositor owns decorations, and under a
+  compositor without server-side decorations (GNOME) the window has none.
 
 ## Community
 

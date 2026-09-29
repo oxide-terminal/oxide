@@ -19,7 +19,7 @@ Nothing else in the crate knows which OS it's on.
 
 | area | macOS | Linux | where |
 |---|---|---|---|
-| bell | `NSBeep` | visual flash (`bell = "sound"` degrades) | `terminal/mod.rs` `system_beep` |
+| bell | `NSBeep` | `canberra-gtk-play` (XDG theme), falling back to `paplay`,then the visual flash | `terminal/mod.rs` `system_beep` |
 | foreground cwd | `proc_pidinfo(PROC_PIDVNODEPATHINFO)` | `/proc/<pgrp>/cwd` | `terminal/session.rs` |
 | foreground name / argv | `proc_pidinfo` + `KERN_PROCARGS2` | `/proc/<pid>/comm` (+ `exe` for the untruncated name), `/proc/<pid>/cmdline` | `terminal/process.rs` |
 | notifications | `UNUserNotificationCenter` (bundle) / `osascript` | `notify-send -A default=Open -w`; a click prints the action and routes back to the pane | `notifications.rs`, `Cargo.toml` (`objc`/`block` are macOS-only deps) |
@@ -145,7 +145,10 @@ to another window):
   `assets/linux/oxide.desktop` declares `X-TerminalArgExec` /
   `X-TerminalArgAppId`. Pinned workspaces are not restored for a `-e` launch.
 - **X11** (above).
-- **`bell = "sound"`** on Linux: XDG sound theme / PipeWire, if anyone asks.
+- ~~**`bell = "sound"`** on Linux: XDG sound theme / PipeWire, if anyone
+  asks.~~ Done: `canberra-gtk-play` plays the XDG theme's bell sound,
+  falling back to `paplay` on the stock freedesktop sound if libcanberra's
+  CLI isn't installed. Runs on a background thread.
 - **Self-update on Linux**: AppImage would allow it; not planned.
 - **Flatpak**: still not worth it (sandboxed terminals fight the host shell).
 - **Generated config template** (`config/mod.rs`): key names in comments are

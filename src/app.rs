@@ -983,7 +983,6 @@ impl Oxide {
     fn install_update(&mut self, cx: &mut Context<Self>) {
         if let UpdateState::Available { url, .. } = &self.update {
             cx.open_url(url);
-            return;
         }
         #[cfg(target_os = "macos")]
         if let UpdateState::Ready { dmg, .. } = &self.update {
