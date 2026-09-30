@@ -11,6 +11,8 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-09-30
+
 ### Added
 
 - The text inputs — the command palette, the file finder, command history,
