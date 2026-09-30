@@ -2488,11 +2488,11 @@ impl TerminalPane {
             && self.mouse_mode_active(event.modifiers.shift)
         {
             self.send_mouse_report(1, col, row, true, &event.modifiers);
-            return;
-        }
-        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if let Some(text) = cx.read_from_primary().and_then(|item| item.text()) {
-            self.paste_text(text, cx);
+        } else {
+            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            if let Some(text) = cx.read_from_primary().and_then(|item| item.text()) {
+                self.paste_text(text, cx);
+            }
         }
     }
 

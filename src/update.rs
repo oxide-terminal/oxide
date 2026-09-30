@@ -34,6 +34,7 @@ pub struct ReleaseInfo {
     /// macOS: the DMG to download. Linux: the release page to open.
     pub url: String,
     /// macOS: the contents of the DMG's `.minisig` file. Linux: None.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub signature: Option<String>,
 }
 
@@ -85,13 +86,21 @@ pub fn fetch_latest() -> Result<Option<ReleaseInfo>, String> {
     }
     let json: serde_json::Value =
         serde_json::from_slice(body).map_err(|e| format!("update check failed: {e}"))?;
-    Ok(parse_manifest(&json, std::env::consts::OS, std::env::consts::ARCH))
+    Ok(parse_manifest(
+        &json,
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+    ))
 }
 
 /// Split curl's `-w '\n%{http_code}'` trailer off the body.
 fn split_status(out: &[u8]) -> Option<(u16, &[u8])> {
     let cut = out.iter().rposition(|&b| b == b'\n')?;
-    let status = std::str::from_utf8(&out[cut + 1..]).ok()?.trim().parse().ok()?;
+    let status = std::str::from_utf8(&out[cut + 1..])
+        .ok()?
+        .trim()
+        .parse()
+        .ok()?;
     Some((status, &out[..cut]))
 }
 
@@ -350,13 +359,19 @@ mod tests {
         assert_eq!(info.signature.as_deref(), Some("sig-arm"));
         let info = parse_manifest(&m, "macos", "x86_64").unwrap();
         assert_eq!(info.url, "https://example.com/x86.dmg");
-        assert!(parse_manifest(&m, "macos", "riscv64").is_none(), "no build for this arch");
+        assert!(
+            parse_manifest(&m, "macos", "riscv64").is_none(),
+            "no build for this arch"
+        );
 
         // Linux announces the release page, and only once its tarball is up.
         let info = parse_manifest(&m, "linux", "x86_64").unwrap();
         assert_eq!(info.url, "https://example.com/releases/v1.2.3");
         assert!(info.signature.is_none());
-        assert!(parse_manifest(&m, "linux", "aarch64").is_none(), "other arch");
+        assert!(
+            parse_manifest(&m, "linux", "aarch64").is_none(),
+            "other arch"
+        );
     }
 
     #[test]
@@ -383,17 +398,48 @@ mod tests {
             })
         };
         let ok = good("v1.0.0", "https://e.com/a.dmg", "s".into());
-        assert_eq!(parse_manifest(&ok, "macos", "aarch64").unwrap().version, "1.0.0", "v prefix");
-        assert!(parse_manifest(&good("nope", "https://e.com/a.dmg", "s".into()), "macos", "aarch64").is_none());
-        assert!(parse_manifest(&good("1.0.0", "http://e.com/a.dmg", "s".into()), "macos", "aarch64").is_none());
-        assert!(parse_manifest(&good("1.0.0", "https://e.com/a.dmg", serde_json::Value::Null), "macos", "aarch64").is_none());
+        assert_eq!(
+            parse_manifest(&ok, "macos", "aarch64").unwrap().version,
+            "1.0.0",
+            "v prefix"
+        );
+        assert!(
+            parse_manifest(
+                &good("nope", "https://e.com/a.dmg", "s".into()),
+                "macos",
+                "aarch64"
+            )
+            .is_none()
+        );
+        assert!(
+            parse_manifest(
+                &good("1.0.0", "http://e.com/a.dmg", "s".into()),
+                "macos",
+                "aarch64"
+            )
+            .is_none()
+        );
+        assert!(
+            parse_manifest(
+                &good("1.0.0", "https://e.com/a.dmg", serde_json::Value::Null),
+                "macos",
+                "aarch64"
+            )
+            .is_none()
+        );
         assert!(parse_manifest(&serde_json::json!({}), "macos", "aarch64").is_none());
     }
 
     #[test]
     fn splits_curl_status_trailer() {
-        assert_eq!(split_status(b"{\"a\":1}\n200"), Some((200, &b"{\"a\":1}"[..])));
-        assert_eq!(split_status(b"multi\nline\nbody\n404"), Some((404, &b"multi\nline\nbody"[..])));
+        assert_eq!(
+            split_status(b"{\"a\":1}\n200"),
+            Some((200, &b"{\"a\":1}"[..]))
+        );
+        assert_eq!(
+            split_status(b"multi\nline\nbody\n404"),
+            Some((404, &b"multi\nline\nbody"[..]))
+        );
         assert_eq!(split_status(b"\n503"), Some((503, &b""[..])));
         assert_eq!(split_status(b"no trailer"), None);
         assert_eq!(split_status(b"body\nnot-a-number"), None);
@@ -408,7 +454,8 @@ mod tests {
     const TEST_SIG: &str = "untrusted comment: test\nRUQ1eUDt/NH0WGBfgeatoZmq9zHuJiWb3aL3RGqipUrZG4gCUEYmLhM+RY6EtzS62uzsRDpfWaegKfGD2ObBNl28ovrRLAGtwgQ=\ntrusted comment: oxide 1.2.3 macos-aarch64\n+Ct1Q/3ocZe+3M7xsfp+VBDr56XbW2086TyDmxM342A5SrhQ081meZyGxw5772jpzGnpAvQxHTao4LPuktnNCw==\n";
 
     fn temp_file(name: &str, bytes: &[u8]) -> PathBuf {
-        let path = std::env::temp_dir().join(format!("oxide-update-test-{}-{name}", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("oxide-update-test-{}-{name}", std::process::id()));
         std::fs::write(&path, bytes).unwrap();
         path
     }
@@ -417,7 +464,10 @@ mod tests {
     fn signature_accepts_the_signed_file_only() {
         let comment = signed_comment("1.2.3", "aarch64");
         let good = temp_file("good", TEST_PAYLOAD);
-        assert_eq!(verify_signature(&good, TEST_KEY, TEST_SIG, &comment), Ok(()));
+        assert_eq!(
+            verify_signature(&good, TEST_KEY, TEST_SIG, &comment),
+            Ok(())
+        );
 
         let tampered = temp_file("tampered", b"oxide test payload!\n");
         let err = verify_signature(&tampered, TEST_KEY, TEST_SIG, &comment).unwrap_err();
@@ -430,7 +480,8 @@ mod tests {
     #[test]
     fn signature_is_bound_to_key_version_and_arch() {
         let file = temp_file("bound", TEST_PAYLOAD);
-        let err = verify_signature(&file, OTHER_KEY, TEST_SIG, "oxide 1.2.3 macos-aarch64").unwrap_err();
+        let err =
+            verify_signature(&file, OTHER_KEY, TEST_SIG, "oxide 1.2.3 macos-aarch64").unwrap_err();
         assert!(err.contains("different key"), "{err}");
         // A genuine signature can't be replayed as another version or arch.
         for wrong in ["oxide 1.2.4 macos-aarch64", "oxide 1.2.3 macos-x86_64", ""] {
