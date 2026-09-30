@@ -46,6 +46,9 @@ write for users: what changed and why it matters, not which files moved.
 
 ### Fixed
 
+- Text in the small input boxes (the palette, rename, the tree's filter and
+  prompts) stays put as the cursor moves through it. The caret used to push
+  the letters after it sideways, so they jiggled with every arrow key.
 - A tab's `×` closes the whole tab when it's the workspace's last one, as it
   does for any other tab. It used to close only the focused pane of a split.
 - A new workspace is named `workspace 1` again once nothing else has that

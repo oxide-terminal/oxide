@@ -3096,11 +3096,16 @@ impl Oxide {
     /// would take a whole monospace cell), or a dimmed placeholder.
     fn render_line_edit(&self, edit: &LineEdit, placeholder: &'static str) -> gpui::Div {
         let theme = &self.theme;
-        let caret = div()
-            .flex_none()
-            .w(px(1.5))
-            .h(px(14.0))
-            .bg(theme.foreground);
+        // Zero-width in the layout, so the text doesn't shift as it passes.
+        let caret = div().flex_none().w(px(0.0)).h(px(14.0)).relative().child(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .w(px(1.5))
+                .h_full()
+                .bg(theme.foreground),
+        );
         let row = div()
             .flex_1()
             .overflow_hidden()

@@ -1727,9 +1727,20 @@ impl Render for FileTree {
                         .when_some(edit, |d, (before, after)| {
                             // A 1px caret between the halves, not a glyph:
                             // a glyph would take a whole monospace cell and
-                            // read as a space.
+                            // read as a space. Zero-width in the layout,
+                            // so the text doesn't shift as it passes.
                             d.child(before)
-                                .child(div().flex_none().w(px(1.5)).h(px(14.0)).bg(theme.ansi[3]))
+                                .child(
+                                    div().flex_none().w(px(0.0)).h(px(14.0)).relative().child(
+                                        div()
+                                            .absolute()
+                                            .top_0()
+                                            .left_0()
+                                            .w(px(1.5))
+                                            .h_full()
+                                            .bg(theme.ansi[3]),
+                                    ),
+                                )
                                 .child(after)
                         })
                         .child(hint),
