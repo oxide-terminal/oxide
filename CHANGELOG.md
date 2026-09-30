@@ -11,6 +11,28 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+### Added
+
+- The text inputs — the command palette, the file finder, command history,
+  the new/rename/move prompts, startup commands, and the tree's filter — now
+  take the mouse and a selection. Click to put the cursor somewhere, drag or
+  shift-click to select, or hold `shift` with any of the keys that move the
+  cursor (`shift-←`, `shift-opt-←`, `shift-cmd-→`…). Typing or pasting
+  replaces the selection. In the palette, finder, history, prompts and
+  startup commands, `cmd-a` selects everything and `cmd-c` / `cmd-x` /
+  `cmd-v` copy, cut and paste (`ctrl-shift-` on Linux).
+
+### Changed
+
+- A new app icon: the terminal prompt in a ring that's rusting away at one
+  edge. It's in the Dock, the Linux app menu and on oxideterminal.com.
+
+### Fixed
+
+- A long startup command wraps onto more lines instead of running off the
+  edge of its box, both while you type it and in the list of a workspace's
+  commands. The other inputs wrap the same way.
+
 ## [0.7.1] - 2026-09-30
 
 ### Added

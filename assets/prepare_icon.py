@@ -103,7 +103,7 @@ def alpha_bbox(w, h, px):
 
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
-    src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, "FeOApricot.png")
+    src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, "oxide_icon_1024.png")
     dst = sys.argv[2] if len(sys.argv) > 2 else os.path.join(here, "icon_1024.png")
 
     w, h, px = load_rgba(src)

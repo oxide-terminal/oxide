@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon_1024.png" width="176" alt="Oxide icon — a corroded iron terminal prompt" />
+  <img src="assets/icon_1024.png" width="176" alt="Oxide icon — a terminal prompt in a rusting ring" />
 </p>
 
 <h1 align="center">Oxide Terminal</h1>

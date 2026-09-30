@@ -22,7 +22,7 @@ use crate::keymap::actions::*;
 use crate::keymap::registry::{self, ActionContext, ActionMeta};
 use crate::keymap::resolve::pretty_keys;
 use crate::keymap::{self, ResolvedKeymap};
-use crate::line_edit::LineEdit;
+use crate::line_edit::{self, LineEdit};
 use crate::notifications;
 use crate::palette::{self, PaletteItem};
 use crate::panes::{Axis, Direction, Node, NodePath};
@@ -2747,7 +2747,11 @@ impl Oxide {
             .child(format!("on exit: {}", on_exit.label()))
     }
 
-    fn render_startup_command_body(&self, s: &StartupCommandState) -> gpui::Div {
+    fn render_startup_command_body(
+        &self,
+        s: &StartupCommandState,
+        cx: &Context<Self>,
+    ) -> gpui::Div {
         let theme = &self.theme;
         let accent = theme.ansi[4];
         let dim = blend(theme.foreground, theme.background, 0.45);
@@ -2792,7 +2796,7 @@ impl Oxide {
             .items_center()
             .gap_2()
             .child(div().text_color(accent).child("▸"))
-            .child(self.render_line_edit(&s.buffer, "nothing — just a shell"))
+            .child(self.render_line_edit(&s.buffer, "nothing — just a shell", cx))
             .child(self.on_exit_chip(s.on_exit, true));
         let footer = div()
             .flex_none()
@@ -2836,7 +2840,9 @@ impl Oxide {
                     .flex()
                     .flex_col()
                     .gap_0p5()
-                    .when(is_selected, |d| d.bg(theme.selection_bg))
+                    // Fainter than elsewhere: this row holds the input, and
+                    // selected text in it is drawn in the full colour.
+                    .when(is_selected, |d| d.bg(theme.selection_bg.opacity(0.4)))
                     .on_mouse_down(
                         gpui::MouseButton::Left,
                         cx.listener(move |this, _: &gpui::MouseDownEvent, _w, cx| {
@@ -2869,7 +2875,7 @@ impl Oxide {
                             )
                             .child(match (row.command.text.is_empty(), is_selected) {
                                 (_, true) => {
-                                    self.render_line_edit(&row.command, "nothing — just a shell")
+                                    self.render_line_edit(&row.command, "nothing — just a shell", cx)
                                 }
                                 (true, false) => {
                                     div().flex_1().text_color(dim).child("just a shell")
@@ -2877,6 +2883,7 @@ impl Oxide {
                                 (false, false) => div()
                                     .flex_1()
                                     .overflow_hidden()
+                                    .whitespace_normal()
                                     .child(row.command.text.clone()),
                             })
                             .when(!row.command.text.is_empty() || is_selected, |d| {
@@ -3092,40 +3099,17 @@ impl Oxide {
         self.close_other_panes(window, cx);
     }
 
-    /// A one-line input: the text either side of a thin caret (a glyph
-    /// would take a whole monospace cell), or a dimmed placeholder.
-    fn render_line_edit(&self, edit: &LineEdit, placeholder: &'static str) -> gpui::Div {
-        let theme = &self.theme;
-        // Zero-width in the layout, so the text doesn't shift as it passes.
-        let caret = div().flex_none().w(px(0.0)).h(px(14.0)).relative().child(
-            div()
-                .absolute()
-                .top_0()
-                .left_0()
-                .w(px(1.5))
-                .h_full()
-                .bg(theme.foreground),
-        );
-        let row = div()
-            .flex_1()
-            .overflow_hidden()
-            .whitespace_nowrap()
-            .flex()
-            .flex_row()
-            .items_center();
-        if edit.text.is_empty() {
-            let dim = blend(theme.foreground, theme.background, 0.45);
-            return row
-                .child(caret)
-                .child(div().text_color(dim).child(placeholder));
-        }
-        let (before, after) = edit.split();
-        row.child(before.to_string())
-            .child(caret)
-            .child(after.to_string())
+    /// A one-line input for the overlay's text field.
+    fn render_line_edit(
+        &self,
+        edit: &LineEdit,
+        placeholder: &'static str,
+        cx: &Context<Self>,
+    ) -> gpui::Div {
+        line_edit::render(edit, placeholder, &self.theme, cx, Self::overlay_query_mut)
     }
 
-    fn render_prompt_body(&self, p: &PromptState) -> gpui::Div {
+    fn render_prompt_body(&self, p: &PromptState, cx: &Context<Self>) -> gpui::Div {
         let theme = &self.theme;
         let dim = blend(theme.foreground, theme.background, 0.45);
         let border = blend(theme.foreground, theme.background, 0.85);
@@ -3148,7 +3132,7 @@ impl Oxide {
             .items_center()
             .gap_2()
             .child(div().text_color(theme.ansi[4]).child("▸"))
-            .child(self.render_line_edit(&p.buffer, ""));
+            .child(self.render_line_edit(&p.buffer, "", cx));
         let mut keys = String::from("⏎ confirm · esc cancel");
         if !p.hint.is_empty() {
             keys = format!("{keys} · {}", p.hint);
@@ -3511,17 +3495,47 @@ impl Oxide {
             cx.stop_propagation();
             return;
         }
-        if !self.overlay_query_mut().is_some_and(|q| q.handle(ks)) {
+        // Cut has no action of its own; copy, paste and select-all arrive as
+        // the terminal's actions (see `render_overlay`).
+        let m = ks.modifiers;
+        if ks.key == "x" && (m.platform || (m.control && m.shift)) {
+            self.overlay_copy(cx);
+            if let Some(q) = self.overlay_query_mut() {
+                q.insert("");
+            }
+        } else if !self.overlay_query_mut().is_some_and(|q| q.handle(ks)) {
             return;
         }
+        cx.stop_propagation();
+        self.overlay_query_changed(cx);
+    }
+
+    /// Re-run whatever the overlay's text field filters, after an edit.
+    fn overlay_query_changed(&mut self, cx: &mut Context<Self>) {
         match &self.overlay {
             Some(Overlay::Palette(_)) => self.palette_refresh(),
             Some(Overlay::History(_)) => self.history_refresh(cx),
             Some(Overlay::FileFinder(_)) => self.finder_refresh(),
             _ => {}
         }
-        cx.stop_propagation();
         cx.notify();
+    }
+
+    fn overlay_copy(&mut self, cx: &mut Context<Self>) {
+        let selected = self.overlay_query_mut().and_then(|q| q.selected_text());
+        if let Some(text) = selected.map(str::to_string) {
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+        }
+    }
+
+    fn overlay_paste(&mut self, cx: &mut Context<Self>) {
+        let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
+            return;
+        };
+        if let Some(q) = self.overlay_query_mut() {
+            q.insert(&text);
+            self.overlay_query_changed(cx);
+        }
     }
 
     // --- File finder (cmd-p) ---
@@ -3721,7 +3735,7 @@ impl Oxide {
             .items_center()
             .gap_2()
             .child(div().text_color(accent).child(format!("{root_name}/")))
-            .child(self.render_line_edit(&f.query, "find a file…"));
+            .child(self.render_line_edit(&f.query, "find a file…", cx));
 
         let mut list = div().flex().flex_col().p_1().gap(px(1.0));
         if self.finder_indexing && self.finder_index.is_none() {
@@ -4015,7 +4029,7 @@ impl Oxide {
             .items_center()
             .gap_2()
             .child(div().text_color(accent).child("history"))
-            .child(self.render_line_edit(&h.query, "search commands you've run…"));
+            .child(self.render_line_edit(&h.query, "search commands you've run…", cx));
 
         let mut list = div().flex().flex_col().p_1().gap(px(1.0));
         if h.matches.is_empty() {
@@ -4156,7 +4170,7 @@ impl Oxide {
             .items_center()
             .gap_2()
             .child(div().text_color(accent).child(">"))
-            .child(self.render_line_edit(&p.query, "type a command…"));
+            .child(self.render_line_edit(&p.query, "type a command…", cx));
 
         let mut list = div().flex().flex_col().p_1().gap(px(1.0));
         if p.matches.is_empty() {
@@ -4286,6 +4300,15 @@ impl Oxide {
             .on_action(cx.listener(|this, _: &PickerConfirmReveal, window, cx| {
                 this.overlay_confirm_reveal(window, cx);
             }))
+            // The terminal's clipboard keys, for the overlay's text field.
+            .on_action(cx.listener(|this, _: &Copy, _w, cx| this.overlay_copy(cx)))
+            .on_action(cx.listener(|this, _: &Paste, _w, cx| this.overlay_paste(cx)))
+            .on_action(cx.listener(|this, _: &SelectAll, _w, cx| {
+                if let Some(q) = this.overlay_query_mut() {
+                    q.select_all();
+                    cx.notify();
+                }
+            }))
             .on_mouse_down(
                 gpui::MouseButton::Left,
                 |_: &gpui::MouseDownEvent, _w, cx| cx.stop_propagation(),
@@ -4338,7 +4361,7 @@ impl Oxide {
                 .w(px(420.0))
                 .track_focus(&self.picker_focus)
                 .on_key_down(cx.listener(Self::on_overlay_key_down))
-                .child(self.render_prompt_body(p)),
+                .child(self.render_prompt_body(p, cx)),
             Overlay::Confirm(c) => panel
                 .w(px(420.0))
                 .track_focus(&self.picker_focus)
@@ -4348,7 +4371,7 @@ impl Oxide {
                 .w(px(560.0))
                 .track_focus(&self.picker_focus)
                 .on_key_down(cx.listener(Self::on_overlay_key_down))
-                .child(self.render_startup_command_body(s)),
+                .child(self.render_startup_command_body(s, cx)),
             Overlay::StartupEditor(e) => panel
                 .w(px(640.0))
                 .track_focus(&self.picker_focus)

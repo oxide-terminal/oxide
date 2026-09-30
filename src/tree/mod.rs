@@ -19,7 +19,7 @@ use gpui::{
 use crate::config::{Config, Theme};
 use crate::git::{self, GitFileStatus};
 use crate::keymap::actions::*;
-use crate::line_edit::LineEdit;
+use crate::line_edit::{self, LineEdit};
 use crate::terminal::colors::{blend, translucent};
 use model::{Node, RowKind, VisibleRow, rebuild_visible, remove_subtree};
 use watch::TreeWatcher;
@@ -1152,22 +1152,15 @@ impl FileTree {
     /// See [`FooterText`].
     fn footer_text(&self) -> Option<FooterText> {
         match &self.input {
-            Some(InputMode::Filter) => {
-                let (before, after) = self.filter.split();
-                Some((
-                    "filter: ".into(),
-                    Some((before.into(), after.into())),
-                    String::new(),
-                ))
-            }
+            Some(InputMode::Filter) => Some(("filter: ".into(), true, String::new())),
             Some(InputMode::ConfirmDelete { target }) => Some((
                 format!("delete {}? (y/n)", file_name(target)),
-                None,
+                false,
                 String::new(),
             )),
             None if !self.filter.text.is_empty() => Some((
                 format!("filter: {}", self.filter.text),
-                None,
+                false,
                 "   (esc clears)".into(),
             )),
             None => None,
@@ -1323,9 +1316,9 @@ const REVEAL_LABEL: &str = if cfg!(target_os = "macos") {
     "Reveal in File Manager"
 };
 
-/// The footer line: a label, the text either side of the caret when
-/// something is being typed, and a hint.
-type FooterText = (String, Option<(String, String)>, String);
+/// The footer line: a label, whether the filter is being typed after it,
+/// and a hint.
+type FooterText = (String, bool, String);
 
 impl FileTree {
     fn render_context_menu(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
@@ -1710,7 +1703,7 @@ impl Render for FileTree {
                     tree.move_entry(drag.path.clone(), root, cx);
                 })),
             )
-            .when_some(self.footer_text(), |d, (label, edit, hint)| {
+            .when_some(self.footer_text(), |d, (label, editing, hint)| {
                 d.child(
                     div()
                         .flex_none()
@@ -1724,24 +1717,10 @@ impl Render for FileTree {
                         .flex_wrap()
                         .items_center()
                         .child(label)
-                        .when_some(edit, |d, (before, after)| {
-                            // A 1px caret between the halves, not a glyph:
-                            // a glyph would take a whole monospace cell and
-                            // read as a space. Zero-width in the layout,
-                            // so the text doesn't shift as it passes.
-                            d.child(before)
-                                .child(
-                                    div().flex_none().w(px(0.0)).h(px(14.0)).relative().child(
-                                        div()
-                                            .absolute()
-                                            .top_0()
-                                            .left_0()
-                                            .w(px(1.5))
-                                            .h_full()
-                                            .bg(theme.ansi[3]),
-                                    ),
-                                )
-                                .child(after)
+                        .when(editing, |d| {
+                            d.child(line_edit::render(&self.filter, "", &theme, cx, |tree| {
+                                Some(&mut tree.filter)
+                            }))
                         })
                         .child(hint),
                 )
