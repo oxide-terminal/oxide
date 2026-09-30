@@ -11,6 +11,14 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+### Fixed
+
+- A startup command that opens an interactive session — `ssh -t` into
+  another machine, a REPL — now shows what you type when your shell is bash.
+  bash handed the command its line editor's terminal settings, with echo
+  off, and `ssh` carried them over to the remote machine: the remote prompt
+  came up, but your typing stayed invisible. zsh wasn't affected.
+
 ## [0.7.2] - 2026-09-30
 
 ### Added

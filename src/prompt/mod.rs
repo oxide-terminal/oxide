@@ -438,6 +438,11 @@ fi
 
 [[ $- == *i* ]] || return 0
 
+# The terminal settings bash runs commands with, taken before readline first
+# switches the terminal to its own (no echo, raw input). The silent-run
+# handler puts these back for the command it runs; see __oxide_run_widget.
+__oxide_tty=$(stty -g 2>/dev/null)
+
 __oxide_style_prompt={style_prompt_flag}
 __oxide_cd_erase=0
 __oxide_git_ok=0
@@ -572,10 +577,22 @@ __oxide_run_widget() {{
     # The DEBUG trap skips our handlers, so emit the command markers here;
     # the app logs the run and learns its exit status.
     {widget_start}
+    # A bind -x handler still has readline's terminal settings: no echo,
+    # raw input. zsh's `zle -I` restores the shell's; bash has no
+    # equivalent, so do it here. Otherwise an interactive command runs
+    # without echo, and `ssh -t` copies that onto the remote terminal,
+    # whose shell then never shows what you type. readline's settings go
+    # back afterwards so the prompt keeps working.
+    local __oxide_rl_tty=""
+    if [[ -n $__oxide_tty ]]; then
+      __oxide_rl_tty=$(stty -g 2>/dev/null </dev/tty)
+      stty "$__oxide_tty" 2>/dev/null </dev/tty
+    fi
     # </dev/tty for the same reason as zsh: a bind -x handler does not
     # inherit the terminal on stdin, and editors refuse to run without it.
     eval "$c" </dev/tty
     rc=$?
+    [[ -n $__oxide_rl_tty ]] && stty "$__oxide_rl_tty" 2>/dev/null </dev/tty
     printf '\033]133;D;%s\033\\' "$rc"
   fi
   # readline redraws the prompt without running PROMPT_COMMAND; the next
@@ -1030,6 +1047,43 @@ mod run_tests {
         assert!(
             after.contains("OXIDE_TTY_OK"),
             "{shell}: the command ran without a terminal on stdin:\n{after}"
+        );
+
+        // ...with the terminal's normal settings, not the line editor's.
+        // bash runs `bind -x` handlers under readline's (no echo, raw
+        // input); an interactive command inherits them, and `ssh -t` copies
+        // them to the remote end, where nothing you type shows up.
+        let modes_file = dir.join("stty-modes");
+        let _ = std::fs::remove_file(&modes_file);
+        trigger(
+            &session,
+            &format!(
+                "stty -a > '{}'; printf 'OXIDE_MODES_READ\\n'",
+                modes_file.display()
+            ),
+            "OXIDE_MODES_READ",
+            shell,
+        );
+        let modes = std::fs::read_to_string(&modes_file).expect("stty -a output");
+        let flags: Vec<&str> = modes.split_whitespace().collect();
+        for flag in ["echo", "icanon"] {
+            assert!(
+                flags.contains(&flag),
+                "{shell}: the command ran with -{flag}:\n{modes}"
+            );
+        }
+        // The line editor gets its settings back afterwards: a typed
+        // command still echoes exactly once, and runs.
+        session.write_input(b"echo OXIDE_TYPED_$((40+2))\r".to_vec());
+        let after = wait_for(
+            &session,
+            "OXIDE_TYPED_42",
+            &format!("{shell}: the prompt stopped taking input after a silent run"),
+        );
+        assert_eq!(
+            after.matches("echo OXIDE_TYPED_").count(),
+            1,
+            "{shell}: typed input wasn't echoed exactly once:\n{after}"
         );
     }
 
