@@ -11,6 +11,8 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-30
+
 ### Added
 
 - `bell = "sound"` now plays the system bell sound on Linux, through
