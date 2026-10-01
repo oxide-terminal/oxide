@@ -3866,12 +3866,16 @@ name = "oxide"
 version = "0.7.3"
 dependencies = [
  "alacritty_terminal",
+ "base64",
  "block",
  "directories",
+ "flate2",
  "futures",
  "gpui",
  "ignore",
+ "image",
  "libc",
+ "memchr",
  "minisign-verify",
  "notify",
  "notify-debouncer-full",

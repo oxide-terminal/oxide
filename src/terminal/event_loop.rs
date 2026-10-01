@@ -6,20 +6,23 @@
 //! Alacritty's parser drops unknown OSCs before anyone can see them; here
 //! each recognised marker ends a parser slice, and the cursor is sampled in
 //! between, so a marker's grid row is exact rather than "somewhere in the
-//! chunk". The write channel, resize, shutdown, and child-exit handling keep
-//! the same semantics as alacritty's loop — `TerminalSession::drop`'s
+//! chunk". Images take the same route: the scanner lifts them out of the
+//! stream and they are placed between two parser slices, at the cursor.
+//! The write channel, resize, shutdown, and child-exit handling keep the
+//! same semantics as alacritty's loop — `TerminalSession::drop`'s
 //! SIGHUP → join → SIGKILL teardown depends on them.
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::io::{self, ErrorKind, Read, Write};
 use std::num::NonZeroUsize;
+use std::os::fd::AsRawFd;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread::JoinHandle;
 use std::time::Instant;
 
-use alacritty_terminal::event::{Event as AlacEvent, EventListener, OnResize, WindowSize};
+use alacritty_terminal::event::{Event as AlacEvent, EventListener};
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::{Term, TermMode};
@@ -27,7 +30,10 @@ use alacritty_terminal::tty::{self, ChildEvent, EventedPty, EventedReadWrite};
 use alacritty_terminal::vte::ansi;
 use polling::{Event as PollingEvent, Events, PollMode, Poller};
 
-use super::osc::{Marker, OscScanner};
+use super::graphics::{GraphicsEvent, GraphicsState};
+use super::osc::Marker;
+use super::scan::{Action, Scanner};
+use super::session::TermSize;
 
 /// The poll keys alacritty's `Pty::register` uses (private constants in
 /// `tty::unix`): the master fd, and the SIGCHLD pipe.
@@ -47,15 +53,73 @@ pub enum Msg {
     /// Stop the loop; the PTY (and with it the child) is dropped afterwards.
     Shutdown,
     /// Propagate a new window size to the PTY.
-    Resize(WindowSize),
+    Resize(TermSize),
+    /// `images.enabled` changed.
+    ImagesEnabled(bool),
+    /// The main thread dropped these images.
+    ForgetImages(Vec<u32>),
 }
 
 /// What the loop reports back to the main thread, multiplexed on one
-/// channel so ordering between output and markers is preserved.
+/// channel so ordering between output, markers and images is preserved: an
+/// image's events always arrive before the `Wakeup` that repaints its cells.
 #[derive(Debug)]
 pub enum SessionEvent {
     Term(AlacEvent),
     Marker(Marker),
+    Graphics(GraphicsEvent),
+}
+
+/// What parsing a chunk produced besides changes to the `Term`.
+#[derive(Debug, Default)]
+pub struct Outputs {
+    /// Markers and graphics events, in stream order.
+    pub events: Vec<SessionEvent>,
+    /// Answers to queries, to write back to the PTY.
+    pub replies: Vec<u8>,
+}
+
+impl Outputs {
+    pub fn graphics(&mut self, event: GraphicsEvent) {
+        self.events.push(SessionEvent::Graphics(event));
+    }
+}
+
+/// Run one chunk of PTY output through the scanner, the VT parser and the
+/// graphics state. Parsing happens in slices that end at each marker or
+/// image, so the cursor read in between is exact. The sequences themselves
+/// are strings the parser ignores, so they move nothing.
+///
+/// One gap: inside a synchronised update (`CSI ? 2026 h`) the parser holds
+/// the bytes back, so a marker's row is sampled where the cursor was when
+/// the update began. Images end the update early instead (see
+/// `GraphicsState::handle`).
+pub fn feed<L: EventListener>(
+    term: &mut Term<L>,
+    parser: &mut ansi::Processor,
+    scanner: &mut Scanner,
+    graphics: &mut GraphicsState,
+    chunk: &[u8],
+) -> Outputs {
+    let mut out = Outputs::default();
+    for action in scanner.scan(chunk) {
+        match action {
+            Action::Parse(range) => parser.advance(term, &chunk[range]),
+            Action::Marker(kind) => {
+                let grid = term.grid();
+                let cursor = grid.cursor.point;
+                out.events.push(SessionEvent::Marker(Marker {
+                    kind,
+                    row: grid.history_size() + cursor.line.0.max(0) as usize,
+                    column: cursor.column.0,
+                    alt_screen: term.mode().contains(TermMode::ALT_SCREEN),
+                }));
+            }
+            Action::Graphics(command) => graphics.handle(term, parser, command, &mut out),
+            Action::Reply(reply) => graphics.reply(term, reply, &mut out.replies),
+        }
+    }
+    out
 }
 
 /// Handle for sending messages to the loop; cloneable, wakes the poller.
@@ -90,8 +154,9 @@ pub struct EventLoop<L: EventListener> {
     tx: Sender<Msg>,
     term: Arc<FairMutex<Term<L>>>,
     listener: L,
-    markers: Box<dyn Fn(Marker) + Send>,
-    scanner: OscScanner,
+    events: Box<dyn Fn(SessionEvent) + Send>,
+    scanner: Scanner,
+    graphics: GraphicsState,
 }
 
 impl<L: EventListener + Send + 'static> EventLoop<L> {
@@ -99,7 +164,8 @@ impl<L: EventListener + Send + 'static> EventLoop<L> {
         term: Arc<FairMutex<Term<L>>>,
         listener: L,
         pty: tty::Pty,
-        markers: impl Fn(Marker) + Send + 'static,
+        graphics: GraphicsState,
+        events: impl Fn(SessionEvent) + Send + 'static,
     ) -> io::Result<Self> {
         let (tx, rx) = mpsc::channel();
         Ok(Self {
@@ -109,8 +175,9 @@ impl<L: EventListener + Send + 'static> EventLoop<L> {
             tx,
             term,
             listener,
-            markers: Box::new(markers),
-            scanner: OscScanner::new(),
+            events: Box::new(events),
+            scanner: Scanner::new(),
+            graphics,
         })
     }
 
@@ -126,7 +193,22 @@ impl<L: EventListener + Send + 'static> EventLoop<L> {
         while let Some(msg) = self.rx.recv() {
             match msg {
                 Msg::Input(input) => state.write_list.push_back(input),
-                Msg::Resize(size) => self.pty.on_resize(size),
+                Msg::Resize(size) => {
+                    self.graphics.set_cell(size.cell_pixels());
+                    // Not alacritty's `on_resize`: its `WindowSize` holds a
+                    // whole-pixel cell, and columns times a rounded 16.8
+                    // misstates the width by a cell or more.
+                    let winsize = size.winsize();
+                    unsafe {
+                        libc::ioctl(
+                            self.pty.file().as_raw_fd(),
+                            libc::TIOCSWINSZ,
+                            &winsize as *const libc::winsize,
+                        )
+                    };
+                }
+                Msg::ImagesEnabled(enabled) => self.graphics.set_enabled(enabled),
+                Msg::ForgetImages(ids) => self.graphics.forget(&ids),
                 Msg::Shutdown => return false,
             }
         }
@@ -164,24 +246,23 @@ impl<L: EventListener + Send + 'static> EventLoop<L> {
                 }),
             };
 
-            // Parse in slices that end at each marker, sampling the cursor
-            // between them. The marker bytes themselves are an OSC the
-            // parser ignores, so they move nothing.
-            let chunk = &buf[..unprocessed];
-            let mut start = 0;
-            for (end, kind) in self.scanner.scan(chunk) {
-                state.parser.advance(&mut **terminal, &chunk[start..end]);
-                start = end;
-                let grid = terminal.grid();
-                let cursor = grid.cursor.point;
-                (self.markers)(Marker {
-                    kind,
-                    row: grid.history_size() + cursor.line.0.max(0) as usize,
-                    column: cursor.column.0,
-                    alt_screen: terminal.mode().contains(TermMode::ALT_SCREEN),
-                });
+            let out = feed(
+                &mut **terminal,
+                &mut state.parser,
+                &mut self.scanner,
+                &mut self.graphics,
+                &buf[..unprocessed],
+            );
+            for event in out.events {
+                (self.events)(event);
             }
-            state.parser.advance(&mut **terminal, &chunk[start..]);
+            // Straight onto the write queue, not round the main thread the
+            // way alacritty's own answers go. A program that asks "kitty
+            // graphics?" and then for DA1 takes whichever answer comes
+            // first as the verdict, and ours must win that race.
+            if !out.replies.is_empty() {
+                state.write_list.push_back(out.replies.into());
+            }
 
             processed += unprocessed;
             unprocessed = 0;

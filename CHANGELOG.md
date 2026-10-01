@@ -11,6 +11,43 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+### Added
+
+- Inline images. Oxide now draws the pictures programs send, over all three
+  protocols in use: kitty graphics (`kitten icat`, yazi, snacks.nvim,
+  `timg`), iTerm2's (`imgcat`, `wezterm imgcat`) and sixel (`img2sixel`,
+  `lsix`, `chafa -f sixel`). PNG, JPEG, WebP and GIF (the first frame) are
+  all read, and on a Retina display images are drawn at the display's full
+  resolution. A picture is part of the scrollback like the text around it:
+  it scrolls, survives a window resize and a font zoom, goes when you
+  `clear` or press `cmd-k`, and a selection copied across one is just the
+  text. kitty's Unicode placeholders are supported, which is what lets
+  images through tmux (`set -g allow-passthrough on`). Not there yet:
+  animation, and kitty's layers — text printed over an image replaces that
+  part of it instead of sitting on top. A new `[images]` section has
+  `enabled`, and `memory_limit` for how much decoded image memory a pane may
+  hold (128 MB by default).
+- Opening a picture shows the picture. `enter` on a PNG, JPEG, GIF, WebP or
+  BMP in the file tree — or picking one in the `cmd-p` finder, or
+  `cmd-click`ing its path in output — opens it in a tab of its own, scaled
+  down to fit when it's larger than the pane. Any key closes it. Set
+  `images.preview_in = "split"` to have it open beside what you're doing
+  instead. It used to be handed to `$EDITOR` like any other file.
+
+### Changed
+
+- Programs now see Oxide for what it is, and see its real size.
+  `TERM_PROGRAM` is always `Oxide` — a shell launched from another terminal
+  used to inherit that terminal's name, and tools would speak its dialect.
+  The window's pixel size is reported in real device pixels (it used to be
+  in points, rounded down, so image tools on a Retina display drew at half
+  resolution), and stays right after a font zoom or a move to another
+  display. Queries for the cell size (`CSI 16 t`) and the terminal's name
+  and version (XTVERSION) are answered where they used to be ignored. With
+  images on, the device-attributes reply is now `?62;4;22c` rather than
+  `?6c`: the `4` is how sixel programs learn they can draw. Worth knowing if
+  anything of yours matched the old value.
+
 ## [0.7.3] - 2026-10-02
 
 ### Fixed

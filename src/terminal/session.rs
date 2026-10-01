@@ -14,6 +14,7 @@ use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
 
 pub use super::event_loop::SessionEvent;
 use super::event_loop::{EventLoop, LoopSender, Msg};
+use super::graphics::GraphicsState;
 
 /// Bridge from the PTY thread to the GPUI main thread. Invoked on the PTY
 /// reader thread, possibly while it holds the term lock — it must do nothing
@@ -27,22 +28,44 @@ impl EventListener for EventProxy {
     }
 }
 
-/// Grid geometry: cell counts plus the measured cell box in pixels.
+/// Grid geometry: cell counts plus the measured cell box, in logical pixels
+/// at `scale` device pixels each.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TermSize {
     pub columns: usize,
     pub screen_lines: usize,
     pub cell_width: f32,
     pub cell_height: f32,
+    pub scale: f32,
 }
 
 impl TermSize {
+    /// One cell in device pixels: what programs are told, so they send
+    /// images at the display's real resolution, and what image placement
+    /// divides by.
+    pub fn cell_pixels(&self) -> (f32, f32) {
+        (self.cell_width * self.scale, self.cell_height * self.scale)
+    }
+
+    /// For spawning the PTY, which takes alacritty's whole-pixel cell.
     pub fn window_size(&self) -> WindowSize {
+        let (cell_width, cell_height) = self.cell_pixels();
         WindowSize {
             num_lines: self.screen_lines as u16,
             num_cols: self.columns as u16,
-            cell_width: self.cell_width as u16,
-            cell_height: self.cell_height as u16,
+            cell_width: cell_width.round() as u16,
+            cell_height: cell_height.round() as u16,
+        }
+    }
+
+    /// What `TIOCGWINSZ` reports, pixel fields from the unrounded cell.
+    pub fn winsize(&self) -> libc::winsize {
+        let (cell_width, cell_height) = self.cell_pixels();
+        libc::winsize {
+            ws_row: self.screen_lines as u16,
+            ws_col: self.columns as u16,
+            ws_xpixel: (self.columns as f32 * cell_width).round() as u16,
+            ws_ypixel: (self.screen_lines as f32 * cell_height).round() as u16,
         }
     }
 }
@@ -67,6 +90,8 @@ pub struct SessionOptions {
     pub working_directory: Option<PathBuf>,
     pub scrollback: usize,
     pub env: HashMap<String, String>,
+    /// `images.enabled`: draw the pictures programs send.
+    pub images: bool,
 }
 
 /// Resolve the shell: config, then $SHELL, then /bin/zsh.
@@ -136,6 +161,13 @@ impl TerminalSession {
         env.insert("TERM".into(), "xterm-256color".into());
         env.insert("COLORTERM".into(), "truecolor".into());
         env.insert("OXIDE_VERSION".into(), env!("CARGO_PKG_VERSION").into());
+        // Always ours: launched from another terminal, the inherited value
+        // would have programs speak that terminal's dialect at Oxide.
+        env.insert("TERM_PROGRAM".into(), "Oxide".into());
+        env.insert(
+            "TERM_PROGRAM_VERSION".into(),
+            env!("CARGO_PKG_VERSION").into(),
+        );
         env.insert("OXIDE_SESSION".into(), session_id.clone());
         // GUI-launched apps get no locale; a C-locale shell breaks multibyte
         // input and prompt glyphs. Mirror Terminal.app: set one if absent.
@@ -159,9 +191,10 @@ impl TerminalSession {
         };
         let term = Arc::new(FairMutex::new(Term::new(term_config, &size, proxy.clone())));
 
-        let marker_tx = proxy.0.clone();
-        let event_loop = EventLoop::new(Arc::clone(&term), proxy, pty, move |marker| {
-            marker_tx.unbounded_send(SessionEvent::Marker(marker)).ok();
+        let event_tx = proxy.0.clone();
+        let graphics = GraphicsState::new(options.images, size.cell_pixels());
+        let event_loop = EventLoop::new(Arc::clone(&term), proxy, pty, graphics, move |event| {
+            event_tx.unbounded_send(event).ok();
         })?;
         let sender = event_loop.sender();
         let join = event_loop.spawn();
@@ -190,7 +223,17 @@ impl TerminalSession {
 
     pub fn resize(&self, size: TermSize) {
         self.term.lock().resize(size);
-        let _ = self.sender.send(Msg::Resize(size.window_size()));
+        let _ = self.sender.send(Msg::Resize(size));
+    }
+
+    /// `images.enabled` changed in the config.
+    pub fn set_images_enabled(&self, enabled: bool) {
+        let _ = self.sender.send(Msg::ImagesEnabled(enabled));
+    }
+
+    /// These images were evicted; the PTY thread stops vouching for them.
+    pub fn forget_images(&self, ids: Vec<u32>) {
+        let _ = self.sender.send(Msg::ForgetImages(ids));
     }
 
     /// The cwd of the foreground process group on the PTY, via tcgetpgrp +
@@ -319,6 +362,7 @@ mod tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let mut env = integration.env;
         env.insert("HISTFILE".into(), "/dev/null".into());
@@ -328,6 +372,7 @@ mod tests {
             working_directory: Some(std::env::temp_dir()),
             scrollback: 100,
             env,
+            images: true,
         };
         let (session, mut rx) = TerminalSession::spawn(options, size).expect("spawn zsh");
         session.write_input(b"false\r".to_vec());
@@ -391,6 +436,7 @@ mod tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let options = SessionOptions {
             program: "/bin/sh".into(),
@@ -398,6 +444,7 @@ mod tests {
             working_directory: None,
             scrollback: 100,
             env: HashMap::from([("HISTFILE".to_string(), "/dev/null".to_string())]),
+            images: true,
         };
         let (session, mut rx) = TerminalSession::spawn(options, size).expect("spawn sh");
         session.write_input(b"echo marker_free\r".to_vec());
@@ -413,6 +460,69 @@ mod tests {
         }
     }
 
+    /// An image printed by a real program over a real PTY: its cells land
+    /// in the grid, its pixels and placement reach the channel, and the
+    /// environment says whose terminal this is.
+    #[test]
+    fn a_printed_image_reaches_the_grid_and_the_channel() {
+        use super::super::graphics::GraphicsEvent;
+        use super::super::placeholder::PLACEHOLDER;
+        use base64::Engine;
+        let size = TermSize {
+            columns: 80,
+            screen_lines: 24,
+            cell_width: 8.0,
+            cell_height: 16.0,
+            scale: 2.0,
+        };
+        let options = SessionOptions {
+            program: "/bin/sh".into(),
+            args: vec![],
+            working_directory: None,
+            scrollback: 100,
+            env: HashMap::from([
+                ("HISTFILE".to_string(), "/dev/null".to_string()),
+                ("TERM_PROGRAM".to_string(), "iTerm.app".to_string()),
+            ]),
+            images: true,
+        };
+        let (session, mut rx) = TerminalSession::spawn(options, size).expect("spawn sh");
+        let file = super::super::images::tests::png(1, 1);
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&file);
+        session.write_input(
+            format!("printf '\\033]1337;File=inline=1:{encoded}\\a'; echo \"<$TERM_PROGRAM>\"\r")
+                .into_bytes(),
+        );
+
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut events = Vec::new();
+        while Instant::now() < deadline {
+            while let Ok(event) = rx.try_recv() {
+                if let SessionEvent::Graphics(event) = event {
+                    events.push(event);
+                }
+            }
+            let text = visible_text(&session);
+            if text.contains(PLACEHOLDER) && text.contains("<Oxide>") {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let text = visible_text(&session);
+        assert!(text.contains(PLACEHOLDER), "no image cell in:\n{text}");
+        assert!(
+            text.contains("<Oxide>"),
+            "TERM_PROGRAM not ours in:\n{text}"
+        );
+        assert!(
+            matches!(&events[..], [
+                GraphicsEvent::Image { size: (1, 1), .. },
+                GraphicsEvent::Place { spec, .. },
+            ] if spec.cell == (16.0, 32.0)),
+            "{events:?}"
+        );
+    }
+
     /// M3: a real shell runs, output lands in the grid, and input round-trips.
     #[test]
     fn shell_round_trip() {
@@ -421,6 +531,7 @@ mod tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let options = SessionOptions {
             program: "/bin/sh".into(),
@@ -428,6 +539,7 @@ mod tests {
             working_directory: None,
             scrollback: 100,
             env: HashMap::from([("HISTFILE".to_string(), "/dev/null".to_string())]),
+            images: true,
         };
         let (session, _rx) = TerminalSession::spawn(options, size).expect("spawn pty");
         session.write_input(b"echo oxide_roundtrip_$((20+22))\r".to_vec());

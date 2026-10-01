@@ -386,6 +386,7 @@ mod tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let options = SessionOptions {
             program: "/bin/sh".into(),
@@ -396,6 +397,7 @@ mod tests {
                 "HISTFILE".to_string(),
                 "/dev/null".to_string(),
             )]),
+            images: true,
         };
         let (session, _rx) = TerminalSession::spawn(options, size).expect("spawn sh");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);

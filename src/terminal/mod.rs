@@ -3,10 +3,15 @@ pub mod colors;
 pub mod commands;
 pub mod element;
 pub mod event_loop;
+pub mod graphics;
+pub mod images;
 pub mod keys;
 pub mod osc;
+pub mod placeholder;
 pub mod process;
+pub mod scan;
 pub mod session;
+pub mod sixel;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -41,7 +46,10 @@ use crate::startup::{OnExit, RestartDecision, RestartGate, StartupCommand};
 pub use click::ClickTarget;
 pub use commands::{Command, CommandLog};
 use element::TerminalElement;
+use graphics::GraphicsEvent;
+use images::ImageStore;
 pub use osc::{Marker, MarkerKind};
+use placeholder::{PLACEHOLDER, strip_placeholders};
 pub use process::ForegroundProcess;
 use session::{SessionEvent, SessionOptions, TermSize, TerminalSession, resolve_shell};
 
@@ -291,6 +299,8 @@ pub struct TerminalPane {
     pub shape_cache: HashMap<u64, ShapedLine>,
     pub prev_shape_cache: HashMap<u64, ShapedLine>,
     pub last_layout: Option<LastLayout>,
+    /// The pictures behind this pane's placeholder cells.
+    pub images: ImageStore,
     last_cwd_poll: Instant,
     cwd_poll_scheduled: bool,
 
@@ -455,6 +465,7 @@ impl TerminalPane {
                 screen_lines: 24,
                 cell_width: 8.0,
                 cell_height: 17.0,
+                scale: 1.0,
             },
             title: "oxide".into(),
             cwd: Some(working_dir.clone()),
@@ -468,6 +479,7 @@ impl TerminalPane {
             shape_cache: HashMap::new(),
             prev_shape_cache: HashMap::new(),
             last_layout: None,
+            images: ImageStore::default(),
             last_cwd_poll: Instant::now(),
             cwd_poll_scheduled: false,
             blink_show: true,
@@ -509,18 +521,32 @@ impl TerminalPane {
         this.spawn_session(cx);
         this.refresh_git_root(cx);
         this.spawn_blink_task(cx);
+        // A closed pane's images would otherwise stay in the GPU atlas.
+        cx.on_release(|pane, cx| {
+            for image in pane.images.clear() {
+                cx.drop_image(image, None);
+            }
+        })
+        .detach();
         this
     }
 
     pub fn set_config(&mut self, config: Rc<Config>, theme: Rc<Theme>, cx: &mut Context<Self>) {
         let term_changed = config.cursor != self.config.cursor
             || config.shell.scrollback != self.config.shell.scrollback;
+        let images_changed = config.images != self.config.images;
         self.config = config;
         self.theme = theme;
         self.shape_cache.clear();
         self.prev_shape_cache.clear();
         if term_changed && let Some(session) = &self.session {
             session.set_term_options(self.term_config());
+        }
+        if images_changed {
+            if let Some(session) = &self.session {
+                session.set_images_enabled(self.config.images.enabled);
+            }
+            self.trim_images(false, cx);
         }
         cx.notify();
     }
@@ -579,6 +605,7 @@ impl TerminalPane {
                 working_directory: Some(cwd),
                 scrollback: shell.scrollback,
                 env: HashMap::new(),
+                images: self.config.images.enabled,
             },
             None => {
                 let program = resolve_shell(shell.program.as_deref());
@@ -590,6 +617,7 @@ impl TerminalPane {
                     working_directory: Some(cwd),
                     scrollback: shell.scrollback,
                     env: integration.env,
+                    images: self.config.images.enabled,
                 }
             }
         };
@@ -619,6 +647,9 @@ impl TerminalPane {
                                         SessionEvent::Marker(marker) => {
                                             pane.handle_marker(marker, cx)
                                         }
+                                        SessionEvent::Graphics(event) => {
+                                            pane.handle_graphics(event, cx)
+                                        }
                                     }
                                 }
                             })
@@ -639,8 +670,100 @@ impl TerminalPane {
 
     pub fn restart(&mut self, cx: &mut Context<Self>) {
         self.session = None;
+        // The new shell starts from an empty grid; so does the store.
+        let stale = self.images.clear();
+        self.release_images(stale, cx);
         self.spawn_session(cx);
         cx.notify();
+    }
+
+    /// An image arrived, was placed, or was deleted. Always ahead of the
+    /// `Wakeup` that repaints the cells involved.
+    fn handle_graphics(&mut self, event: GraphicsEvent, cx: &mut Context<Self>) {
+        match event {
+            GraphicsEvent::Image {
+                id,
+                size,
+                data,
+                reservation,
+            } => {
+                let (generation, replaced) = self.images.begin(id, size);
+                self.release_images(replaced, cx);
+                // Never on this thread: a large photo takes a while, and
+                // typing must not wait for it. Its cells draw blank until
+                // it lands.
+                let decode = cx.background_executor().spawn(async move {
+                    let image = images::decode(data, size);
+                    // Decoded: its share of the PTY thread's budget is free.
+                    drop(reservation);
+                    image
+                });
+                cx.spawn(async move |this, cx| {
+                    let image = decode.await;
+                    this.update(cx, |pane, cx| {
+                        pane.images.finish(id, generation, image);
+                        pane.trim_images(false, cx);
+                        cx.notify();
+                    })
+                    .ok();
+                })
+                .detach();
+            }
+            GraphicsEvent::Place {
+                image,
+                placement,
+                spec,
+            } => self.images.place(image, placement, spec),
+            GraphicsEvent::Delete { image, placement } => self.images.delete(image, placement),
+            GraphicsEvent::Free { image } => {
+                let freed = self.images.free(image);
+                self.release_images(freed, cx);
+            }
+        }
+    }
+
+    /// Take images that left the store out of the GPU atlas too, which
+    /// otherwise only grows. Deferred to the end of the update, when no
+    /// window is checked out and `drop_image` reaches all of them; the
+    /// repaint keeps a frame that still drew one from being shown again.
+    fn release_images(
+        &mut self,
+        images: impl IntoIterator<Item = std::sync::Arc<gpui::RenderImage>>,
+        cx: &mut Context<Self>,
+    ) {
+        let images: Vec<_> = images.into_iter().collect();
+        if images.is_empty() {
+            return;
+        }
+        cx.notify();
+        cx.defer(move |cx| {
+            for image in images {
+                cx.drop_image(image, None);
+            }
+        });
+    }
+
+    /// Hold decoded images to `images.memory_limit`. Nothing reports a
+    /// picture whose cells scrolled out of history or were cleared, so
+    /// when over the limit (or when `sweep` says the grid just lost a lot)
+    /// the grid is read for the ids still in it; whatever else must go is
+    /// the least recently drawn.
+    fn trim_images(&mut self, sweep: bool, cx: &mut Context<Self>) {
+        let limit = self.config.images.memory_limit.saturating_mul(1 << 20);
+        if self.images.is_empty() || !(sweep || self.images.bytes() > limit) {
+            return;
+        }
+        let live = self
+            .session
+            .as_ref()
+            .and_then(|session| images::live_ids(&session.term.lock()));
+        let (ids, pixels) = self.images.evict(limit, live.as_ref());
+        self.release_images(pixels, cx);
+        if !ids.is_empty()
+            && let Some(session) = &self.session
+        {
+            session.forget_images(ids);
+        }
     }
 
     fn handle_marker(&mut self, marker: Marker, cx: &mut Context<Self>) {
@@ -740,7 +863,7 @@ impl TerminalPane {
             GridPoint::new(start, Column(column)),
             GridPoint::new(end, term.last_column()),
         );
-        let text = text.trim().to_string();
+        let text = strip_placeholders(&text).trim().to_string();
         (!text.is_empty()).then_some(text)
     }
 
@@ -762,7 +885,7 @@ impl TerminalPane {
             GridPoint::new(start, Column(0)),
             GridPoint::new(end, term.last_column()),
         );
-        let text = text.trim_end().to_string();
+        let text = strip_placeholders(&text).trim_end().to_string();
         (!text.is_empty()).then_some(text)
     }
 
@@ -851,7 +974,7 @@ impl TerminalPane {
                 // Device Attributes and cursor-position query responses; if
                 // these are dropped, querying programs hang forever.
                 if let Some(session) = &self.session {
-                    session.write_input(text.into_bytes());
+                    session.write_input(self.device_attributes(text).into_bytes());
                 }
             }
             AlacEvent::ClipboardStore(_, text) => {
@@ -879,11 +1002,9 @@ impl TerminalPane {
                     session.write_input(formatter(Rgb { r, g, b }).into_bytes());
                 }
             }
-            AlacEvent::TextAreaSizeRequest(formatter) => {
-                if let Some(session) = &self.session {
-                    session.write_input(formatter(self.size.window_size()).into_bytes());
-                }
-            }
+            // `CSI 14 t` is answered on the PTY thread (`Reply::TextAreaSize`),
+            // in the same device pixels as the cell size it's read against.
+            AlacEvent::TextAreaSizeRequest(_) => {}
             AlacEvent::Bell => match self.config.bell {
                 BellMode::None => {}
                 BellMode::Sound if system_beep() => {}
@@ -917,6 +1038,18 @@ impl TerminalPane {
                 self.session = None;
                 cx.notify();
             }
+        }
+    }
+
+    /// alacritty answers DA1 as a VT102 (`?6c`). With images on, the answer
+    /// is a VT220 with sixel (4) and ANSI colour (22): that `4` is how sixel
+    /// programs, and tmux, learn they can draw here. Anything else alacritty
+    /// writes passes through untouched.
+    fn device_attributes(&self, reply: String) -> String {
+        if reply == "\x1b[?6c" && self.config.images.enabled {
+            "\x1b[?62;4;22c".into()
+        } else {
+            reply
         }
     }
 
@@ -1146,13 +1279,17 @@ impl TerminalPane {
         cx.notify();
     }
 
+    /// The selected text, without the placeholder cells of any image the
+    /// selection runs across.
+    fn selection_text(&self) -> Option<String> {
+        let text = self.session.as_ref()?.term.lock().selection_to_string()?;
+        Some(strip_placeholders(&text).into_owned())
+    }
+
     /// Copy the selection (if any) to the clipboard. Returns whether
     /// anything was copied.
     fn copy_selection(&self, cx: &mut Context<Self>) -> bool {
-        let Some(session) = &self.session else {
-            return false;
-        };
-        let text = session.term.lock().selection_to_string();
+        let text = self.selection_text();
         match text {
             Some(text) if !text.is_empty() => {
                 cx.write_to_clipboard(ClipboardItem::new_string(text));
@@ -1494,7 +1631,13 @@ impl TerminalPane {
             ));
         }
         let cols = self.size.columns;
-        let chars: Vec<char> = (0..cols).map(|c| grid[point.line][Column(c)].c).collect();
+        // An image beside a path is a gap, not part of the token.
+        let chars: Vec<char> = (0..cols)
+            .map(|c| match grid[point.line][Column(c)].c {
+                PLACEHOLDER => ' ',
+                c => c,
+            })
+            .collect();
         drop(term);
         let token = click::token_at(&chars, point.column.0)?;
         let home = crate::app::home_dir();
@@ -2107,12 +2250,7 @@ impl TerminalPane {
     }
 
     fn copy(&mut self, _: &Copy, _window: &mut Window, cx: &mut Context<Self>) {
-        let Some(session) = &self.session else { return };
-        if let Some(text) = session.term.lock().selection_to_string()
-            && !text.is_empty()
-        {
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-        }
+        self.copy_selection(cx);
     }
 
     fn select_all(&mut self, _: &SelectAll, _window: &mut Window, cx: &mut Context<Self>) {
@@ -2140,6 +2278,7 @@ impl TerminalPane {
         drop(term);
         self.prompt_marks.clear();
         self.log.forget_rows();
+        self.trim_images(true, cx);
         cx.notify();
     }
 
@@ -2444,8 +2583,7 @@ impl TerminalPane {
         if self.selecting {
             self.selecting = false;
             self.autoscroll = None;
-            if let Some(session) = &self.session
-                && let Some(text) = session.term.lock().selection_to_string()
+            if let Some(text) = self.selection_text()
                 && !text.is_empty()
             {
                 // Linux: a selection is the primary selection, always —
