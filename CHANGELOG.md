@@ -11,6 +11,8 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-02
+
 ### Fixed
 
 - A startup command that opens an interactive session — `ssh -t` into
