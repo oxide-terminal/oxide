@@ -14,8 +14,8 @@ commits.
 ### 2. Make the release commit
 
 ```sh
-./scripts/bump.sh 0.7.3
-git commit -am "release v0.7.3" && git push
+./scripts/bump.sh 0.8.0
+git commit -am "release v0.8.0" && git push
 ```
 
 `bump.sh` does four things, and refuses to run if **Unreleased** in
@@ -106,17 +106,17 @@ If the build succeeded but publishing failed, or you need `--target <sha>` to
 tag a different commit (`gh` rejects abbreviated SHAs; pass the full hash):
 
 ```sh
-cp target/Oxide-0.7.3.dmg target/Oxide-0.7.3-update.dmg
+cp target/Oxide-0.8.0.dmg target/Oxide-0.8.0-update.dmg
 minisign -S -s ~/.config/oxide-release/update.key \
-  -m target/Oxide-0.7.3-update.dmg -x target/Oxide-0.7.3-update.dmg.macos-aarch64.minisig \
-  -t "oxide 0.7.3 macos-aarch64"
-for f in Oxide-0.7.3.dmg Oxide-0.7.3-update.dmg Oxide-0.7.3-update.dmg.macos-aarch64.minisig; do
-  npx wrangler r2 object put "oxide-releases/oxide/0.7.3/$f" --remote --file "target/$f" \
+  -m target/Oxide-0.8.0-update.dmg -x target/Oxide-0.8.0-update.dmg.macos-aarch64.minisig \
+  -t "oxide 0.8.0 macos-aarch64"
+for f in Oxide-0.8.0.dmg Oxide-0.8.0-update.dmg Oxide-0.8.0-update.dmg.macos-aarch64.minisig; do
+  npx wrangler r2 object put "oxide-releases/oxide/0.8.0/$f" --remote --file "target/$f" \
     --cache-control "public, max-age=31536000, immutable"
 done
-gh release create v0.7.3 target/Oxide-0.7.3-update.dmg target/Oxide-0.7.3.dmg \
-  --title "Oxide v0.7.3" \
-  --notes "$(sed -n '/^## \[0.7.3\]/,/^## \[/p' CHANGELOG.md | sed '1d;$d')"
+gh release create v0.8.0 target/Oxide-0.8.0-update.dmg target/Oxide-0.8.0.dmg \
+  --title "Oxide v0.8.0" \
+  --notes "$(sed -n '/^## \[0.8.0\]/,/^## \[/p' CHANGELOG.md | sed '1d;$d')"
 ```
 
 Then the manifest. Its shape (the `signature` is the `.minisig` file's contents
@@ -124,21 +124,21 @@ as one JSON string; `jq -Rs . < file.minisig` produces it):
 
 ```json
 {
-  "version": "0.7.3",
+  "version": "0.8.0",
   "pub_date": "2026-10-02T18:00:00Z",
-  "notes_url": "https://oxideterminal.com/changelog/#v0.7.3",
-  "release_url": "https://github.com/oxide-terminal/oxide/releases/tag/v0.7.3",
-  "download_url": "https://downloads.oxideterminal.com/oxide/0.7.3/Oxide-0.7.3.dmg",
+  "notes_url": "https://oxideterminal.com/changelog/#v0.8.0",
+  "release_url": "https://github.com/oxide-terminal/oxide/releases/tag/v0.8.0",
+  "download_url": "https://downloads.oxideterminal.com/oxide/0.8.0/Oxide-0.8.0.dmg",
   "sha256": "<sha256 of the DMG>",
   "assets": {
     "macos-aarch64": {
-      "url": "https://downloads.oxideterminal.com/oxide/0.7.3/Oxide-0.7.3-update.dmg",
+      "url": "https://downloads.oxideterminal.com/oxide/0.8.0/Oxide-0.8.0-update.dmg",
       "size": 11705200,
       "sha256": "<sha256 of the DMG>",
-      "signature": "untrusted comment: …\n…\ntrusted comment: oxide 0.7.3 macos-aarch64\n…\n"
+      "signature": "untrusted comment: …\n…\ntrusted comment: oxide 0.8.0 macos-aarch64\n…\n"
     },
     "linux-x86_64": {
-      "url": "https://downloads.oxideterminal.com/oxide/0.7.3/oxide-0.7.3-linux-x86_64.tar.gz",
+      "url": "https://downloads.oxideterminal.com/oxide/0.8.0/oxide-0.8.0-linux-x86_64.tar.gz",
       "size": 8000000,
       "sha256": "<sha256 of the tarball>",
       "signature": "…"
@@ -154,7 +154,7 @@ Linux pill opens; `size` is for the website's download button. Finally
 
 The trusted comment must be exactly `oxide <version> macos-<arch>` — the
 updater checks it after the signature, so a real signature can't be reused for
-another version. Upload it as `releases/0.7.3.json` (immutable) and
+another version. Upload it as `releases/0.8.0.json` (immutable) and
 `releases/stable.json` (`--cache-control "public, max-age=60"`).
 
 ### 4. The Linux build (on the Linux box)
@@ -167,7 +167,7 @@ on it:
 ```sh
 ssh linux-box
 cd ~/Code/oxide-app/oxide
-git pull --ff-only && git fetch --tags    # HEAD is at (or just past) v0.7.3
+git pull --ff-only && git fetch --tags    # HEAD is at (or just past) v0.8.0
 ./scripts/release-linux.sh
 ```
 
@@ -200,7 +200,7 @@ from scratch and takes a while; later ones reuse `target/docker/`. Commit
 that bump:
 
 ```sh
-git commit -am "aur: oxide-terminal-bin 0.7.3" && git push
+git commit -am "aur: oxide-terminal-bin 0.8.0" && git push
 ```
 
 The package isn't on the AUR yet, so that's the end of the Linux release.
@@ -210,7 +210,7 @@ publishes it:
 ```sh
 cd packaging/aur/oxide-terminal-bin && makepkg --printsrcinfo > .SRCINFO
 cp PKGBUILD .SRCINFO ~/aur/oxide-terminal-bin/
-cd ~/aur/oxide-terminal-bin && git add -A && git commit -m "v0.7.3" && git push
+cd ~/aur/oxide-terminal-bin && git add -A && git commit -m "v0.8.0" && git push
 ```
 
 Before the first push, `makepkg -si` in `packaging/aur/oxide-terminal-bin`
@@ -340,7 +340,7 @@ npx wrangler r2 object put oxide-releases/releases/stable.json --remote --file /
   --content-type application/json --cache-control "public, max-age=60"
 ```
 
-— and delete the bad GitHub release (`gh release delete v0.7.3 --yes`).
+— and delete the bad GitHub release (`gh release delete v0.8.0 --yes`).
 Installed copies never downgrade, so anyone who already got the bad build
 needs the next release; ship it as a new version number.
 
@@ -349,7 +349,7 @@ needs the next release; ship it as a new version number.
 - **Never overwrite a published object.** `release.sh` refuses to run if the
   bucket already has this version. A fix goes out as a new version number;
   old versions stay so the cask's pinned URL and rollbacks keep working.
-- **The tag must be `v<Cargo.toml version>`** (e.g. `v0.7.3` for `0.7.3`) and
+- **The tag must be `v<Cargo.toml version>`** (e.g. `v0.8.0` for `0.8.0`) and
   the GitHub release must have a `.dmg` asset, or updaters older than the
   manifest switch ignore it. They prefer `-update.dmg` and fall back to the
   plain one.

@@ -11,6 +11,8 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-02
+
 ### Added
 
 - Inline images. Oxide now draws the pictures programs send, over all three
