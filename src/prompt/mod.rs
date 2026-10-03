@@ -466,9 +466,14 @@ __oxide_exit=0
 # and zoxide all append to it. Keep every element (a plain string is a
 # one-element array here), then drop the variable before ours replaces it:
 # an element left behind would run at top level, where the DEBUG trap
-# would log it as a command that never finishes.
-__oxide_original_prompt_commands=("${{PROMPT_COMMAND[@]}}")
-unset PROMPT_COMMAND
+# would log it as a command that never finishes. Skip our own hook, so
+# sourcing this file twice cannot make it call itself.
+__oxide_original_prompt_commands=()
+for __oxide_pc in "${{PROMPT_COMMAND[@]}}"; do
+  [[ "$__oxide_pc" == *__oxide_prompt_command* ]] && continue
+  __oxide_original_prompt_commands+=("$__oxide_pc")
+done
+unset __oxide_pc PROMPT_COMMAND
 
 # Note: this installs a DEBUG trap (the bash-preexec pattern) for OSC 133;C
 # and command timing; a pre-existing DEBUG trap would be replaced.
@@ -490,7 +495,19 @@ __oxide_seg() {{
 
 __oxide_prompt_command() {{
   # Capture $? before anything else or we report our own exit status.
-  __oxide_exit=$?
+  local __oxide_status=$?
+  # Re-sourcing ~/.bashrc re-runs `starship init bash`, which finds this
+  # hook in PROMPT_COMMAND, stashes it in STARSHIP_PROMPT_COMMAND and evals
+  # it from starship_precmd — while we eval starship_precmd from the hooks
+  # captured above. Left alone, each calls the other until bash overflows
+  # its stack and segfaults. FUNCNAME lists every function still running;
+  # if we are already on it, this is the inner call: do nothing and let the
+  # outer one finish the prompt.
+  local __oxide_fn
+  for __oxide_fn in "${{FUNCNAME[@]:1}}"; do
+    [[ "$__oxide_fn" == __oxide_prompt_command ]] && return 0
+  done
+  __oxide_exit=$__oxide_status
   if [[ -n "$__oxide_t0" ]]; then __oxide_dur=$(( SECONDS - __oxide_t0 )); else __oxide_dur=""; fi
   __oxide_t0=""
   __oxide_at_prompt=1
@@ -505,6 +522,10 @@ __oxide_prompt_command() {{
   local __oxide_pc
   for __oxide_pc in "${{__oxide_original_prompt_commands[@]}}"; do
     [[ -n "$__oxide_pc" ]] || continue
+    # A hook that is itself running us (starship_precmd after a bashrc
+    # re-source, see above) is already on the stack: running it again here
+    # would draw its prompt twice. Skip it; it finishes after we return.
+    [[ " ${{FUNCNAME[*]}} " == *" ${{__oxide_pc%%[[:space:];]*}} "* ]] && continue
     # Each hook sees the real exit status, as it would without us.
     ( exit "$__oxide_exit" )
     eval "$__oxide_pc"
@@ -843,6 +864,83 @@ mod cd_tests {
         let first_c = text.find("133;C").unwrap();
         let first_a = text.find("133;A").unwrap();
         assert!(first_a < first_c, "startup logged as a command:\n{text}");
+    }
+
+    /// Re-sourcing ~/.bashrc re-runs `starship init bash`, which finds our
+    /// hook in PROMPT_COMMAND, stashes it in STARSHIP_PROMPT_COMMAND and
+    /// evals it from starship_precmd — while we eval starship_precmd from
+    /// the hooks captured at startup. Each then calls the other until bash
+    /// overflows its stack and segfaults. The fake precmd here mirrors
+    /// starship's install logic exactly; the shell must survive the next
+    /// prompt and both hooks must still run once.
+    #[test]
+    fn bash_prompt_hook_survives_bashrc_resource() {
+        let bash = "/bin/bash";
+        if !std::path::Path::new(bash).exists() {
+            return;
+        }
+        let home = std::env::temp_dir().join(format!("oxide-pc-resource-{}", std::process::id()));
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(
+            home.join(".bashrc"),
+            concat!(
+                "fake_precmd() { echo fake-precmd; eval \"$FAKE_PROMPT_COMMAND\"; }\n",
+                "if [[ -z \"${PROMPT_COMMAND-}\" ]]; then\n",
+                "  PROMPT_COMMAND=fake_precmd\n",
+                "elif [[ \"$PROMPT_COMMAND\" != *fake_precmd* ]]; then\n",
+                "  FAKE_PROMPT_COMMAND=\"$PROMPT_COMMAND\"\n",
+                "  PROMPT_COMMAND=fake_precmd\n",
+                "fi\n",
+            ),
+        )
+        .unwrap();
+        let init = home.join("init.bash");
+        std::fs::write(
+            &init,
+            crate::prompt::generate_init_bash(&crate::prompt::PromptConfig::default(), false, true),
+        )
+        .unwrap();
+
+        use std::io::Write as _;
+        use std::process::{Command, Stdio};
+        let mut child = Command::new(bash)
+            .arg("--init-file")
+            .arg(&init)
+            .arg("-i")
+            .env("HOME", &home)
+            .env("TERM", "xterm-256color")
+            .env("HISTFILE", "/dev/null")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(b"source ~/.bashrc\necho still-alive\nexit\n")
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let _ = std::fs::remove_dir_all(&home);
+
+        assert!(
+            out.status.success(),
+            "bash did not exit cleanly after re-sourcing .bashrc: {:?}\n{text}",
+            out.status
+        );
+        assert!(text.contains("still-alive"), "{text}");
+        // Three prompts (after init, after source, after echo): the wrapped
+        // hook runs once per prompt, never recursively.
+        let precmds = text.matches("fake-precmd").count();
+        assert_eq!(precmds, 3, "fake precmd ran {precmds} times:\n{text}");
+        let ds: Vec<&str> = text.matches("133;D").collect();
+        assert_eq!(ds.len(), 3, "one D marker per prompt:\n{text}");
     }
 
     #[test]

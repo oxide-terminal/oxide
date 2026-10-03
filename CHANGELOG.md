@@ -11,6 +11,15 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+### Fixed
+
+- Running `source ~/.bashrc` in a bash tab no longer crashes the shell.
+  Re-running starship's setup wrapped Oxide's prompt hook inside
+  starship's, and the two then called each other until bash ran out of
+  stack and segfaulted, taking the tab's unsaved history with it. The hook
+  now notices when it is already running and steps aside, and sourcing
+  Oxide's own init file twice can no longer make it call itself.
+
 ## [0.8.0] - 2026-10-02
 
 ### Added
