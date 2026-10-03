@@ -702,6 +702,7 @@ mod tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let options = SessionOptions {
             program: "/bin/zsh".into(),
@@ -713,6 +714,7 @@ mod tests {
                 e.insert("HISTFILE".into(), "/dev/null".into());
                 e
             },
+            images: true,
         };
         let (session, _rx) = TerminalSession::spawn(options, size).expect("spawn zsh");
 
@@ -864,6 +866,7 @@ mod cd_tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let options = SessionOptions {
             program: bash.to_string(),
@@ -875,6 +878,7 @@ mod cd_tests {
                 e.insert("HISTFILE".into(), "/dev/null".into());
                 e
             },
+            images: true,
         };
         let (session, _rx) = TerminalSession::spawn(options, size).expect("spawn bash");
         std::thread::sleep(Duration::from_millis(1500)); // let rc files load
@@ -979,6 +983,7 @@ mod run_tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let options = SessionOptions {
             program: shell.to_string(),
@@ -990,6 +995,7 @@ mod run_tests {
                 e.insert("HISTFILE".into(), "/dev/null".into());
                 e
             },
+            images: true,
         };
         let (session, mut rx) = TerminalSession::spawn(options, size).expect("spawn shell");
         std::thread::sleep(Duration::from_millis(1500)); // let rc files load
@@ -1158,6 +1164,7 @@ mod run_tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let options = SessionOptions {
             program: shell.to_string(),
@@ -1169,6 +1176,7 @@ mod run_tests {
                 e.insert("HISTFILE".into(), "/dev/null".into());
                 e
             },
+            images: true,
         };
         let (session, mut rx) = TerminalSession::spawn(options, size).expect("spawn shell");
 
@@ -1231,6 +1239,7 @@ mod run_tests {
             screen_lines: 24,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let spawn = || {
             let options = SessionOptions {
@@ -1243,6 +1252,7 @@ mod run_tests {
                     e.insert("HISTFILE".into(), "/dev/null".into());
                     e
                 },
+                images: true,
             };
             TerminalSession::spawn(options, size)
                 .expect("spawn shell")

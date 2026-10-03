@@ -258,6 +258,12 @@ track        = true           # the command log: status bar, tab dots, cmd-r his
 emit_cmdline = true           # the shell sends each command line to Oxide (memory only)
 max_entries  = 500
 
+[images]
+enabled      = true           # draw the images programs send (kitty, iTerm2 and sixel)
+memory_limit = 128            # decoded image memory per pane, in MB; past it, images that
+                              # have left the buffer go first, then the least recently drawn
+preview_in   = "tab"          # tab | split — where a picture opened from the tree is shown
+
 [workspaces]
 run_startup_commands = true   # re-run each pane's saved startup command when a pinned
                               # workspace is restored (skip once: --no-startup-commands,

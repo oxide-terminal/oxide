@@ -1192,6 +1192,7 @@ mod tests {
             screen_lines: 10,
             cell_width: 8.0,
             cell_height: 16.0,
+            scale: 1.0,
         };
         let mut term = Term::new(Config::default(), &size, VoidListener);
         let text = render("```sh\nls\n```\n\n```sh\npwd\n```\n", 40).text;

@@ -1,20 +1,23 @@
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use alacritty_terminal::index::Point as GridPoint;
 use alacritty_terminal::selection::SelectionRange;
 use alacritty_terminal::term::TermMode;
 use alacritty_terminal::term::cell::Flags;
-use alacritty_terminal::vte::ansi::{Color as AnsiColor, CursorShape};
+use alacritty_terminal::vte::ansi::{Color as AnsiColor, CursorShape, NamedColor};
 use gpui::{
-    App, BorderStyle, Bounds, DispatchPhase, Element, ElementId, Entity, Font, FontFallbacks,
-    FontStyle, FontWeight, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId,
-    MouseButton, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, ShapedLine, SharedString,
-    StrikethroughStyle, Style, TextRun, UnderlineStyle, Window, fill, point, px, quad, relative,
-    size,
+    App, BorderStyle, Bounds, ContentMask, Corners, DispatchPhase, Element, ElementId, Entity,
+    Font, FontFallbacks, FontStyle, FontWeight, GlobalElementId, Hsla, InspectorElementId,
+    IntoElement, LayoutId, MouseButton, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
+    RenderImage, ShapedLine, SharedString, StrikethroughStyle, Style, TextRun, UnderlineStyle,
+    Window, fill, point, px, quad, relative, size,
 };
 
 use super::TerminalPane;
 use super::colors::{blend, resolve};
+use super::images;
+use super::placeholder::{self, ImageCell};
 use super::session::TermSize;
 use crate::config::Theme;
 use crate::config::schema::{FontWeightName, UnfocusedCursor};
@@ -26,6 +29,29 @@ struct CellSnap {
     fg: AnsiColor,
     bg: AnsiColor,
     flags: Flags,
+    /// The slice of a picture this cell shows. Such a cell is copied out as
+    /// a blank, so nothing downstream shapes its placeholder or its marks.
+    image: Option<ImageCell>,
+}
+
+/// A rectangle of one placement's cells as they sit on screen: `cols` ×
+/// `rows` cells from screen position (`row`, `col`), the top-left one
+/// showing `first`. Usually the whole image; less when it's part scrolled
+/// off, part overwritten, or wrapped by a narrower window.
+#[derive(Debug, PartialEq)]
+struct ImageRun {
+    first: ImageCell,
+    row: usize,
+    col: usize,
+    cols: usize,
+    rows: usize,
+}
+
+/// One sprite: the whole image scaled into `bounds`, of which `clip` shows.
+struct ImagePaint {
+    image: Arc<RenderImage>,
+    bounds: Bounds<Pixels>,
+    clip: Bounds<Pixels>,
 }
 
 struct CursorLayout {
@@ -42,6 +68,7 @@ pub struct GridLayout {
     origin: Point<Pixels>,
     cell_height: f32,
     bg_quads: Vec<PaintQuad>,
+    images: Vec<ImagePaint>,
     selection_quads: Vec<PaintQuad>,
     lines: Vec<(usize, ShapedLine)>,
     cursor: Option<CursorLayout>,
@@ -141,6 +168,14 @@ impl Element for TerminalElement {
         }
         for q in layout.bg_quads.drain(..) {
             window.paint_quad(q);
+        }
+        for image in layout.images.drain(..) {
+            let mask = Some(ContentMask { bounds: image.clip });
+            window.with_content_mask(mask, |window| {
+                window
+                    .paint_image(image.bounds, Corners::default(), image.image, 0, false)
+                    .ok();
+            });
         }
         for q in layout.selection_quads.drain(..) {
             window.paint_quad(q);
@@ -267,17 +302,22 @@ fn layout_grid(
     let columns = ((avail_w / cell_width).floor() as usize).max(2);
     let screen_lines = ((avail_h / cell_height).floor() as usize).max(1);
 
+    let scale = window.scale_factor();
     let new_size = TermSize {
         columns,
         screen_lines,
         cell_width,
         cell_height,
+        scale,
     };
-    let grid_changed = columns != pane.size.columns || screen_lines != pane.size.screen_lines;
+    let grid_changed = new_size != pane.size;
     pane.size = new_size;
     if grid_changed {
-        // Resize only when the *cell* dimensions changed — this is the
-        // debounce that prevents SIGWINCH storms during window drags.
+        // Resize only when the grid changed, not on every pixel of a window
+        // drag — this is the debounce that prevents SIGWINCH storms. The
+        // cell's size in pixels counts as the grid: a font zoom or a move
+        // to another display can keep the cell counts and still change the
+        // pixel size programs draw images against.
         if let Some(session) = &pane.session {
             session.resize(new_size);
         }
@@ -287,6 +327,7 @@ fn layout_grid(
         origin,
         cell_height,
         bg_quads: Vec::new(),
+        images: Vec::new(),
         selection_quads: Vec::new(),
         lines: Vec::with_capacity(screen_lines),
         cursor: None,
@@ -311,18 +352,42 @@ fn layout_grid(
         selection = content.selection;
         cursor = content.cursor;
         mode = content.mode;
+        // The image cell to the left on the same row: one that leaves out
+        // its row or column takes them from there.
+        let mut left: Option<(i32, ImageCell)> = None;
         for indexed in content.display_iter {
             let row = indexed.point.line.0 + display_offset as i32;
             if row < 0 || row as usize >= screen_lines {
                 continue;
             }
             let cell = &indexed.cell;
-            rows[row as usize].push(CellSnap {
-                c: cell.c,
-                zerowidth: cell.zerowidth().map(|z| z.to_vec()),
-                fg: cell.fg,
-                bg: cell.bg,
-                flags: cell.flags,
+            let image = placeholder::decode(
+                cell.c,
+                cell.zerowidth(),
+                cell.fg,
+                cell.underline_color(),
+                left.filter(|(left_row, _)| *left_row == row)
+                    .map(|(_, cell)| cell),
+            );
+            left = image.map(|image| (row, image));
+            rows[row as usize].push(match image {
+                Some(_) => CellSnap {
+                    c: ' ',
+                    zerowidth: None,
+                    // Its real colour is the image id, not a colour.
+                    fg: AnsiColor::Named(NamedColor::Foreground),
+                    bg: cell.bg,
+                    flags: cell.flags,
+                    image,
+                },
+                None => CellSnap {
+                    c: cell.c,
+                    zerowidth: cell.zerowidth().map(|z| z.to_vec()),
+                    fg: cell.fg,
+                    bg: cell.bg,
+                    flags: cell.flags,
+                    image: None,
+                },
             });
         }
         cursor_style = term.cursor_style();
@@ -336,6 +401,40 @@ fn layout_grid(
         display_offset,
     });
 
+    // --- Images: one sprite per rectangle of a placement's cells. ---
+    pane.images.begin_frame();
+    for run in image_runs(&rows) {
+        let Some((image, image_size, spec)) = pane.images.lookup(&run.first) else {
+            // Still decoding, failed, or deleted: the cells stay blank.
+            continue;
+        };
+        // Worked out in device pixels, the unit the image was placed in.
+        let (whole, shown) =
+            images::layout(&spec, image_size, (cell_width * scale, cell_height * scale));
+        // The run's corner, less how far into the box its first cell is.
+        let box_x = origin.x + px((run.col as f32 - run.first.col as f32) * cell_width);
+        let box_y = origin.y + px((run.row as f32 - run.first.row as f32) * cell_height);
+        let in_box = |[x, y, w, h]: [f32; 4]| Bounds {
+            origin: point(box_x + px(x / scale), box_y + px(y / scale)),
+            size: size(px(w / scale), px(h / scale)),
+        };
+        let cells = Bounds {
+            origin: point(
+                origin.x + px(run.col as f32 * cell_width),
+                origin.y + px(run.row as f32 * cell_height),
+            ),
+            size: size(
+                px(run.cols as f32 * cell_width),
+                px(run.rows as f32 * cell_height),
+            ),
+        };
+        layout.images.push(ImagePaint {
+            image,
+            bounds: in_box(whole),
+            clip: in_box(shown).intersect(&cells),
+        });
+    }
+
     // --- Shape rows (with a per-frame cache) and build quads. ---
     pane.prev_shape_cache = std::mem::take(&mut pane.shape_cache);
 
@@ -346,7 +445,7 @@ fn layout_grid(
         // Background + selection quads, coalescing adjacent same-color cells.
         let mut col = 0usize;
         let mut open_bg: Option<(usize, usize, Hsla)> = None; // (start, end_exclusive, color)
-        let mut open_sel: Option<(usize, usize)> = None;
+        let mut open_sel: Option<(usize, usize, Hsla)> = None;
         for cell in row {
             let width = if cell.flags.contains(Flags::WIDE_CHAR) {
                 2
@@ -400,9 +499,19 @@ fn layout_grid(
             );
             let selected = selection.is_some_and(|r| r.contains(grid_point));
             if selected {
+                // The selection is painted over images; opaque, it would
+                // hide the picture for as long as it's selected.
+                let sel = match cell.image {
+                    Some(_) => theme.selection_bg.opacity(0.4),
+                    None => theme.selection_bg,
+                };
                 open_sel = match open_sel {
-                    Some((start, end)) if end == col => Some((start, col + width)),
-                    Some((start, end)) => {
+                    Some((start, end, color))
+                        if end == col && color_key(color) == color_key(sel) =>
+                    {
+                        Some((start, col + width, color))
+                    }
+                    Some((start, end, color)) => {
                         layout.selection_quads.push(cell_run_quad(
                             origin,
                             row_y,
@@ -410,13 +519,13 @@ fn layout_grid(
                             end,
                             cell_width,
                             cell_height,
-                            theme.selection_bg,
+                            color,
                         ));
-                        Some((col, col + width))
+                        Some((col, col + width, sel))
                     }
-                    None => Some((col, col + width)),
+                    None => Some((col, col + width, sel)),
                 };
-            } else if let Some((start, end)) = open_sel.take() {
+            } else if let Some((start, end, color)) = open_sel.take() {
                 layout.selection_quads.push(cell_run_quad(
                     origin,
                     row_y,
@@ -424,7 +533,7 @@ fn layout_grid(
                     end,
                     cell_width,
                     cell_height,
-                    theme.selection_bg,
+                    color,
                 ));
             }
             col += width;
@@ -440,7 +549,7 @@ fn layout_grid(
                 color,
             ));
         }
-        if let Some((start, end)) = open_sel {
+        if let Some((start, end, color)) = open_sel {
             layout.selection_quads.push(cell_run_quad(
                 origin,
                 row_y,
@@ -448,7 +557,7 @@ fn layout_grid(
                 end,
                 cell_width,
                 cell_height,
-                theme.selection_bg,
+                color,
             ));
         }
 
@@ -572,6 +681,77 @@ fn layout_grid(
     }
 
     layout
+}
+
+/// Gather the image cells on screen into rectangles: along each row while
+/// the cells are consecutive columns of the same image row, then down while
+/// the next row holds the same columns of the next image row. An image that
+/// is whole and on screen comes out as one.
+fn image_runs(rows: &[Vec<CellSnap>]) -> Vec<ImageRun> {
+    // Add a finished row's run, or grow the run it continues.
+    fn close(runs: &mut Vec<ImageRun>, above: &[usize], here: &mut Vec<usize>, run: ImageRun) {
+        let continued = above.iter().copied().find(|&ix| {
+            let top = &runs[ix];
+            (top.col, top.cols) == (run.col, run.cols)
+                && (top.first.image, top.first.placement, top.first.col)
+                    == (run.first.image, run.first.placement, run.first.col)
+                && top.first.row as usize + top.rows == run.first.row as usize
+        });
+        match continued {
+            Some(ix) => {
+                runs[ix].rows += 1;
+                here.push(ix);
+            }
+            None => {
+                here.push(runs.len());
+                runs.push(run);
+            }
+        }
+    }
+
+    let mut runs: Vec<ImageRun> = Vec::new();
+    // The runs that reach down to the previous row; only they can continue.
+    let mut above: Vec<usize> = Vec::new();
+    for (row_idx, row) in rows.iter().enumerate() {
+        let mut here = Vec::new();
+        let mut open: Option<ImageRun> = None;
+        let mut col = 0usize;
+        for cell in row {
+            if cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
+                continue;
+            }
+            let continues = |run: &ImageRun, cell: &ImageCell| {
+                (cell.image, cell.placement, cell.row)
+                    == (run.first.image, run.first.placement, run.first.row)
+                    && cell.col as usize == run.first.col as usize + run.cols
+            };
+            match (&mut open, cell.image) {
+                (Some(run), Some(image)) if continues(run, &image) => run.cols += 1,
+                (_, image) => {
+                    if let Some(run) = open.take() {
+                        close(&mut runs, &above, &mut here, run);
+                    }
+                    open = image.map(|first| ImageRun {
+                        first,
+                        row: row_idx,
+                        col,
+                        cols: 1,
+                        rows: 1,
+                    });
+                }
+            }
+            col += if cell.flags.contains(Flags::WIDE_CHAR) {
+                2
+            } else {
+                1
+            };
+        }
+        if let Some(run) = open {
+            close(&mut runs, &above, &mut here, run);
+        }
+        above = here;
+    }
+    runs
 }
 
 fn cell_run_quad(
@@ -760,7 +940,74 @@ fn shape_row(
 
 #[cfg(test)]
 mod tests {
-    use super::display_char;
+    use super::*;
+
+    /// A screen from a picture of it: a digit is the cell in that column
+    /// of image 1's row (the screen row less `shift`), a letter is text.
+    fn screen(lines: &[&str], shift: usize) -> Vec<Vec<CellSnap>> {
+        lines
+            .iter()
+            .enumerate()
+            .map(|(row, line)| {
+                line.chars()
+                    .map(|c| CellSnap {
+                        c: ' ',
+                        zerowidth: None,
+                        fg: AnsiColor::Named(NamedColor::Foreground),
+                        bg: AnsiColor::Named(NamedColor::Background),
+                        flags: Flags::empty(),
+                        image: c.to_digit(10).map(|col| ImageCell {
+                            image: 1,
+                            placement: 1,
+                            row: (row - shift) as u16,
+                            col: col as u16,
+                        }),
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    fn run(first: (u16, u16), row: usize, col: usize, cols: usize, rows: usize) -> ImageRun {
+        ImageRun {
+            first: ImageCell {
+                image: 1,
+                placement: 1,
+                row: first.0,
+                col: first.1,
+            },
+            row,
+            col,
+            cols,
+            rows,
+        }
+    }
+
+    #[test]
+    fn a_whole_image_is_one_run_and_a_broken_one_is_its_pieces() {
+        // Three columns by three rows, one cell in from the left, starting
+        // on the second screen row.
+        let whole = screen(&["a    ", " 012 ", " 012 ", " 012b"], 1);
+        assert_eq!(image_runs(&whole), vec![run((0, 0), 1, 1, 3, 3)]);
+
+        // Text over the middle cell splits that row, and the rows around
+        // it no longer share its columns.
+        let broken = screen(&[" 012 ", " 0x2 ", " 012 "], 0);
+        assert_eq!(
+            image_runs(&broken),
+            vec![
+                run((0, 0), 0, 1, 3, 1),
+                run((1, 0), 1, 1, 1, 1),
+                run((1, 2), 1, 3, 1, 1),
+                run((2, 0), 2, 1, 3, 1),
+            ]
+        );
+
+        // Scrolled half off the top: what remains starts at image row 1.
+        let mut scrolled = screen(&["x", " 012 ", " 012 "], 0);
+        scrolled.remove(0);
+        assert_eq!(image_runs(&scrolled), vec![run((1, 0), 0, 1, 3, 2)]);
+    }
 
     #[test]
     fn control_chars_render_as_single_cell_blanks() {

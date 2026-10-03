@@ -572,6 +572,24 @@ fn shell_quote(path: &Path) -> String {
     single_quote(&path.to_string_lossy())
 }
 
+/// Show an image file and wait for a key: what an image preview pane runs.
+/// Nothing but `/bin/sh` and `base64` is needed, because the terminal it
+/// prints to is Oxide. `fit` scales the picture down to the pane; without
+/// it the picture is drawn at its own size, never blown up.
+fn image_preview_command(path: &Path, fit: bool) -> String {
+    let sizing = if fit { ";width=100%%;height=100%%" } else { "" };
+    // Clear, hide the cursor, send the file inline (iTerm2's OSC 1337), then
+    // read one key with the terminal's line editing off and put it back.
+    let script = format!(
+        r#"s=$(stty -g); stty -icanon -echo; printf "[2J[H[?25l]1337;File=inline=1{sizing}:"; base64 < "$1"; printf ""; dd bs=1 count=1 >/dev/null 2>&1; printf "[?25h"; stty "$s""#
+    );
+    format!(
+        "/bin/sh -c {} sh {}",
+        single_quote(&script),
+        shell_quote(path)
+    )
+}
+
 /// Whether `less` can wrap at spaces instead of mid-word. An older less
 /// stops on an unknown flag with a "press RETURN" prompt, so ask first.
 /// Probes the app's PATH; a shell with a different less is assumed newer.
@@ -1947,6 +1965,46 @@ impl Oxide {
         let name = source.file_name().unwrap_or_default().to_string_lossy();
         let title = format!("preview: {name}");
         self.open_pager(&path, code, cwd, title, place, window, cx);
+    }
+
+    /// Show an image file in a pane of its own, a new tab or a split
+    /// (`images.preview_in`), drawn by the pane itself; any key closes it.
+    /// `size` is the picture's, in pixels.
+    fn open_image_preview(
+        &mut self,
+        path: &Path,
+        size: (u32, u32),
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let place = self.config.images.preview_in;
+        // Whether it needs scaling down, judged by the focused pane: a new
+        // tab's pane is that size or larger, a split's half as wide.
+        let padding = self.config.window.padding;
+        let scale = window.scale_factor();
+        let share = match place {
+            OpenIn::Tab => 1.0,
+            OpenIn::Split => 0.5,
+        };
+        let fit = self.active_pane().read(cx).last_layout.is_none_or(|l| {
+            let room = |extent: f32, pad: f32, cell: f32| (extent - pad * 2.0 - cell) * scale;
+            let width = f32::from(l.bounds.size.width) * share;
+            size.0 as f32 > room(width, padding.x, l.cell_width)
+                || size.1 as f32 > room(l.bounds.size.height.into(), padding.y, l.cell_height)
+        });
+        let cwd = path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.new_tab_cwd(cx));
+        let title = path.file_name().unwrap_or_default().to_string_lossy();
+        self.open_command_pane(
+            image_preview_command(path, fit),
+            cwd,
+            Some(title.into_owned()),
+            place,
+            window,
+            cx,
+        );
     }
 
     /// Columns a terminal filling the current tab has: what a new tab's pager
@@ -3865,6 +3923,12 @@ impl Oxide {
         self.recent_files.retain(|p| p != path);
         self.recent_files.push_front(path.to_path_buf());
         self.recent_files.truncate(30);
+        // A picture isn't something to edit: Oxide can show it.
+        if self.config.images.enabled
+            && let Some(size) = crate::terminal::images::file_size(path)
+        {
+            return self.open_image_preview(path, size, window, cx);
+        }
         let shell = self.shell_program();
         let name = crate::terminal::session::shell_name(&shell);
         let widgets = name.starts_with("zsh") || name.starts_with("bash");
@@ -6705,6 +6769,28 @@ mod reorder_tests {
 mod edit_command_tests {
     use super::*;
     use std::process::Command;
+
+    /// What the image preview's command really prints, run by a shell the
+    /// way the pane runs it: the inline-image sequence with the file's
+    /// base64 inside, for a path that needs quoting.
+    #[test]
+    fn the_image_preview_command_prints_the_file_inline() {
+        let dir = std::env::temp_dir().join(format!("oxide img'test {}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("a picture.png");
+        std::fs::write(&path, b"not really a png").unwrap();
+        for (fit, sizing) in [(true, ";width=100%;height=100%"), (false, "")] {
+            let out = Command::new("/bin/sh")
+                .args(["-c", &image_preview_command(&path, fit)])
+                .stdin(std::process::Stdio::null())
+                .output()
+                .unwrap();
+            let printed = String::from_utf8_lossy(&out.stdout).replace('\n', "");
+            let expect = format!("\x1b]1337;File=inline=1{sizing}:bm90IHJlYWxseSBhIHBuZw==\x07");
+            assert!(printed.contains(&expect), "{printed:?}");
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     /// Shells someone might plausibly have as their login shell on a Mac.
     const CANDIDATES: &[&str] = &[

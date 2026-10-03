@@ -105,6 +105,10 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
 - **Real terminal** — full VT emulation via Alacritty's parser: truecolor, wide glyphs and
   combining marks, bracketed paste, mouse reporting (SGR), alternate-screen scrolling, OSC 8
   hyperlinks, OSC 52 clipboard. vim, htop, and tmux just work.
+- **Inline images** — the kitty graphics protocol, iTerm2's, and sixel: `kitten icat`,
+  `imgcat`, `img2sixel`, yazi's previews, snacks.nvim. A picture lives in the scrollback
+  like text does — it scrolls, reflows, and clears — and is drawn at the display's real
+  resolution. Unicode placeholders carry images through tmux.
 - **File tree drawer** — follows the focused pane, so switching splits re-roots it to
   that shell's directory. Modeless vim navigation (`j`/`k`/`gg`/`G`, nvim-tree style `h`/`l`),
   type-to-filter with `/`, and file operations: `a` add, `r` rename, `m` move, `d` delete
@@ -120,7 +124,8 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
   manager — a directory, the root's name, or the empty space under the rows to add a file or
   folder there — or, on a `.md` file, preview it (`P` from the keyboard)
   rendered in a new tab or split (`markdown.preview_in`; full CommonMark and GitHub markdown, with
-  tables and highlighted code with click-to-copy);
+  tables and highlighted code with click-to-copy); `enter` on a picture shows it in a tab or
+  split of its own (`images.preview_in`), any key to close;
   drag rows or drop files onto a pane. A file opened while the pane is busy in an editor gets a tab
   or split of its own (`editor.open_in`).
 - **Scrollback search** — `cmd-f`, live, `⏎`/`⇧⏎` to walk matches; regex, case-sensitive,
@@ -335,6 +340,11 @@ open_in = "tab"               # tab | split — where a file opens when the pane
 [markdown]
 preview_in = "tab"            # tab | split — where a markdown preview opens
 
+[images]
+enabled      = true           # draw the images programs send (kitty, iTerm2, sixel)
+memory_limit = 128            # MB of decoded images per pane
+preview_in   = "tab"          # tab | split — where a picture opened from the tree is shown
+
 [status_bar]
 enabled  = true
 position = "bottom"
@@ -406,6 +416,9 @@ One binary crate. The PTY reader/parser runs on its own thread
 (`alacritty_terminal`'s event loop) and mutates a shared `Term` behind a mutex;
 the GPUI main thread briefly locks it during paint to copy the visible grid out,
 then shapes and paints batched text runs directly — no per-cell elements.
+An image is text as far as the grid is concerned — placeholder cells written where the
+picture goes, each naming its slice — so scrollback, reflow, and clears need no special
+cases; the pixels are decoded on the background pool and drawn under the text.
 Directory scans, git queries, and file watching run on the background pool.
 The tree follows `cd` by polling the PTY's foreground process group cwd
 (`tcgetpgrp` + `proc_pidinfo` on macOS, `/proc/<pid>/cwd` on Linux), so it works
@@ -423,6 +436,10 @@ with zero shell cooperation. Platform differences are confined to a handful of
   never exits). Startup commands are the workaround: declare what a pane runs
   and it's re-run on restore. `on_exit` needs shell integration with zsh or
   bash; other shells get the command typed in and nothing more.
+- Images: no animation yet (a GIF shows its first frame), and an image is part of the
+  text grid rather than a layer over it, so text printed across one replaces that part
+  of it and kitty's `z` index is ignored. The kitty protocol's file and shared-memory
+  transfers are refused; programs fall back to sending the pixels down the pipe.
 - Left/right Option can't be distinguished; `option_as_meta` treats `left`/`right` as `both`.
 - Linux: there's no in-place self-update (the pill opens the release page);
   `window.titlebar` is ignored — the compositor owns decorations, and under a

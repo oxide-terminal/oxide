@@ -25,6 +25,32 @@ pub struct Config {
     pub ssh: SshConfig,
     pub workspaces: WorkspacesConfig,
     pub markdown: MarkdownConfig,
+    pub images: ImagesConfig,
+}
+
+/// Inline images: the pictures programs send with the kitty, iTerm2 and
+/// sixel protocols.
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct ImagesConfig {
+    /// Draw them. Off, queries go unanswered and programs fall back to text.
+    pub enabled: bool,
+    /// Decoded image memory per pane, in MB. Past it, images whose cells
+    /// have left the buffer go first, then the least recently drawn.
+    pub memory_limit: usize,
+    /// Where an image file opened from the tree, the finder or a
+    /// cmd-click is shown.
+    pub preview_in: OpenIn,
+}
+
+impl Default for ImagesConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            memory_limit: 128,
+            preview_in: OpenIn::Tab,
+        }
+    }
 }
 
 /// Where something that needs a pane of its own opens: a new tab, or a
@@ -1045,11 +1071,13 @@ mod tabs_config_tests {
         let d = Config::default();
         assert_eq!(d.editor.open_in, OpenIn::Tab);
         assert_eq!(d.markdown.preview_in, OpenIn::Tab);
+        assert_eq!(d.images.preview_in, OpenIn::Tab);
         let c: Config =
-            toml::from_str("[editor]\nopen_in = \"split\"\n[markdown]\npreview_in = \"split\"\n")
+            toml::from_str("[editor]\nopen_in = \"split\"\n[markdown]\npreview_in = \"split\"\n[images]\npreview_in = \"split\"\n")
                 .unwrap();
         assert_eq!(c.editor.open_in, OpenIn::Split);
         assert_eq!(c.markdown.preview_in, OpenIn::Split);
+        assert_eq!(c.images.preview_in, OpenIn::Split);
         assert!(toml::from_str::<Config>("[editor]\nopen_in = \"window\"\n").is_err());
     }
 
