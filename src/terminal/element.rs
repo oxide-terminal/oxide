@@ -311,7 +311,18 @@ fn layout_grid(
         scale,
     };
     let grid_changed = new_size != pane.size;
+    let columns_changed = columns != pane.size.columns;
     pane.size = new_size;
+    if columns_changed {
+        // A paged preview was laid out for the old width: render it again
+        // and have less reload the file (`R`).
+        if let Some(code) = pane.preview_render.as_ref().and_then(|render| render(columns)) {
+            pane.preview_code = code;
+            if let Some(session) = &pane.session {
+                session.write_input(b"R".as_slice());
+            }
+        }
+    }
     if grid_changed {
         // Resize only when the grid changed, not on every pixel of a window
         // drag — this is the debounce that prevents SIGWINCH storms. The

@@ -339,6 +339,10 @@ pub struct TerminalPane {
     /// Code blocks of the markdown preview this pane is paging; the "copy"
     /// links in it name them by index. Empty in every other pane.
     pub preview_code: Vec<String>,
+    /// Re-renders the preview this pane is paging to a column count,
+    /// rewriting the paged file; returns its code blocks. Called when the
+    /// pane's width changes so the preview follows a resize.
+    pub preview_render: Option<Box<dyn Fn(usize) -> Option<Vec<String>>>>,
     /// Repo root for the current cwd, looked up on the background pool.
     git_root: Option<PathBuf>,
     git_root_for: Option<PathBuf>,
@@ -499,6 +503,7 @@ impl TerminalPane {
             last_program_notify: None,
             tree_root: None,
             preview_code: Vec::new(),
+            preview_render: None,
             git_root: None,
             git_root_for: None,
             exists_cache: HashMap::new(),

@@ -1928,6 +1928,7 @@ impl Oxide {
         self.open_pager(
             &path,
             code,
+            crate::changelog::write_rendered,
             cwd,
             "what's new".into(),
             OpenIn::Tab,
@@ -1964,7 +1965,9 @@ impl Oxide {
             .unwrap_or_else(|| self.new_tab_cwd(cx));
         let name = source.file_name().unwrap_or_default().to_string_lossy();
         let title = format!("preview: {name}");
-        self.open_pager(&path, code, cwd, title, place, window, cx);
+        let source = source.to_path_buf();
+        let render = move |cols| crate::markdown::write_preview(&source, cols);
+        self.open_pager(&path, code, render, cwd, title, place, window, cx);
     }
 
     /// Show an image file in a pane of its own, a new tab or a split
@@ -2037,12 +2040,14 @@ impl Oxide {
     }
 
     /// Page a rendered (ANSI) file with `less`. `code` is what the
-    /// rendering's "copy" links copy.
+    /// rendering's "copy" links copy; `render` redoes the rendering at a
+    /// new column count when the pane is resized.
     #[allow(clippy::too_many_arguments)]
     fn open_pager(
         &mut self,
         path: &Path,
         code: Vec<String>,
+        render: impl Fn(usize) -> Option<(PathBuf, Vec<String>)> + 'static,
         cwd: PathBuf,
         title: String,
         place: OpenIn,
@@ -2059,7 +2064,10 @@ impl Oxide {
         // --tilde: leave the rows past the end blank, not marked with `~`.
         let command = format!("less -Rc --tilde{wrap} {}", shell_quote(path));
         let id = self.open_command_pane(command, cwd, Some(title), place, window, cx);
-        self.panes[&id].update(cx, |pane, _| pane.preview_code = code);
+        self.panes[&id].update(cx, |pane, _| {
+            pane.preview_code = code;
+            pane.preview_render = Some(Box::new(move |cols| render(cols).map(|(_, code)| code)));
+        });
     }
 
     /// A pane of its own for `command`: a new tab in the current workspace,

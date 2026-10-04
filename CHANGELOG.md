@@ -13,6 +13,10 @@ write for users: what changed and why it matters, not which files moved.
 
 ### Fixed
 
+- A markdown preview (and Help → What's New) now re-flows to fit its pane
+  when the pane is resized. A preview opened in a thin split stayed that
+  thin after the split was widened; now the text, tables and code boxes
+  are laid out again for the new width.
 - Running `source ~/.bashrc` in a bash tab no longer crashes the shell.
   Re-running starship's setup wrapped Oxide's prompt hook inside
   starship's, and the two then called each other until bash ran out of
