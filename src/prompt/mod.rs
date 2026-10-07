@@ -795,6 +795,39 @@ mod cd_tests {
         out
     }
 
+    /// A forced-interactive bash driven over pipes, started in its own session
+    /// so it has no controlling terminal. Without `setsid`, `bash -i` opens
+    /// /dev/tty and takes the terminal's foreground away from the test
+    /// harness; a second one starting meanwhile sends SIGTTIN to the whole
+    /// `cargo test` process group, and the run halts mid-way with the shell
+    /// reporting it as stopped.
+    fn detached_interactive_bash(
+        bash: &str,
+        init: &std::path::Path,
+        home: &std::path::Path,
+    ) -> std::process::Child {
+        use std::os::unix::process::CommandExt as _;
+        use std::process::{Command, Stdio};
+        let mut cmd = Command::new(bash);
+        cmd.arg("--init-file")
+            .arg(init)
+            .arg("-i")
+            .env("HOME", home)
+            .env("TERM", "xterm-256color")
+            .env("HISTFILE", "/dev/null")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        // SAFETY: setsid is async-signal-safe and touches no shared state.
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::setsid();
+                Ok(())
+            });
+        }
+        cmd.spawn().unwrap()
+    }
+
     /// The tree's `c` must change the shell's directory with no `cd` echoed.
     /// Runs against every bash on the machine — Apple's /bin/bash 3.2 has a
     /// broken multi-char `bind -x` that needs the trampoline path, while a
@@ -823,19 +856,7 @@ mod cd_tests {
         .unwrap();
 
         use std::io::Write as _;
-        use std::process::{Command, Stdio};
-        let mut child = Command::new(bash)
-            .arg("--init-file")
-            .arg(&init)
-            .arg("-i")
-            .env("HOME", &home)
-            .env("TERM", "xterm-256color")
-            .env("HISTFILE", "/dev/null")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
+        let mut child = detached_interactive_bash(bash, &init, &home);
         child
             .stdin
             .take()
@@ -902,19 +923,7 @@ mod cd_tests {
         .unwrap();
 
         use std::io::Write as _;
-        use std::process::{Command, Stdio};
-        let mut child = Command::new(bash)
-            .arg("--init-file")
-            .arg(&init)
-            .arg("-i")
-            .env("HOME", &home)
-            .env("TERM", "xterm-256color")
-            .env("HISTFILE", "/dev/null")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
+        let mut child = detached_interactive_bash(bash, &init, &home);
         child
             .stdin
             .take()
