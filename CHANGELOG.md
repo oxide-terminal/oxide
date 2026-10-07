@@ -11,6 +11,8 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-07
+
 ### Fixed
 
 - A markdown preview (and Help → What's New) now re-flows to fit its pane
