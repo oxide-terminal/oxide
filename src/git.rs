@@ -42,10 +42,16 @@ pub fn git_usable() -> bool {
     })
 }
 
+/// `core.fsmonitor` names a command that `git status` runs, and a repo's own
+/// `.git/config` can set it. These polls run in whatever directory the user
+/// lands in — an unpacked archive included — so never honour it.
+const NO_FSMONITOR: [&str; 2] = ["-c", "core.fsmonitor=false"];
+
 fn git_text(cwd: &Path, args: &[&str]) -> Option<String> {
     let out = Command::new("git")
         .arg("-C")
         .arg(cwd)
+        .args(NO_FSMONITOR)
         .args(args)
         .output()
         .ok()?;
@@ -122,6 +128,7 @@ pub fn file_statuses(root: &Path) -> Result<HashMap<PathBuf, GitFileStatus>, Sta
     let out = Command::new("git")
         .arg("-C")
         .arg(root)
+        .args(NO_FSMONITOR)
         .args([
             "status",
             "--porcelain=v1",

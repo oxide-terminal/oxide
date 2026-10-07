@@ -349,6 +349,9 @@ pub struct TerminalPane {
     exists_cache: HashMap<PathBuf, (bool, Instant)>,
     /// The token under a cmd-hover, underlined to show it's clickable.
     pub hover: Option<HoverSpan>,
+    /// The URL that hover would open, shown in the pane's corner so an
+    /// OSC 8 link can't pass off one address as another.
+    hover_url: Option<String>,
     /// Keystrokes and pastes are echoed to the tab's other panes. Set by
     /// the owner; the pane only reports its input.
     pub broadcast: bool,
@@ -508,6 +511,7 @@ impl TerminalPane {
             git_root_for: None,
             exists_cache: HashMap::new(),
             hover: None,
+            hover_url: None,
             broadcast: false,
             foreground: None,
             last_foreground_poll: Instant::now(),
@@ -775,6 +779,12 @@ impl TerminalPane {
         let now = Instant::now();
         match &marker.kind {
             MarkerKind::Cwd(path) => {
+                // A remote shell's OSC 7 names a directory on its machine,
+                // and `file:///…` with no host would pass as local. Nothing
+                // here should follow it: not the tree, not the git poll.
+                if self.ssh_host().is_some() {
+                    return;
+                }
                 self.osc7_seen = true;
                 self.log.cwd = Some(path.clone());
                 if self.cwd.as_ref() != Some(path) {
@@ -1623,15 +1633,36 @@ impl TerminalPane {
         let session = self.session.as_ref()?;
         let term = session.term.lock();
         let grid = term.grid();
-        // Explicit hyperlinks (OSC 8) win over textual detection.
+        // Explicit hyperlinks (OSC 8) win over textual detection. The target
+        // is hidden behind arbitrary text, so only schemes that open a
+        // browser or mail client are honoured: `file:///x.command` or an
+        // app's custom scheme would run something on a click.
         if let Some(link) = grid[point.line][point.column].hyperlink() {
-            let col = point.column.0;
+            let uri = link.uri();
+            if !["http://", "https://", "mailto:"]
+                .iter()
+                .any(|s| uri.len() > s.len() && uri[..s.len()].eq_ignore_ascii_case(s))
+            {
+                return None;
+            }
+            // Underline the whole run of cells sharing the link.
+            let line = &grid[point.line];
+            let linked = |col: usize| line[Column(col)].hyperlink().as_ref() == Some(&link);
+            let start = (0..point.column.0)
+                .rev()
+                .take_while(|&c| linked(c))
+                .last()
+                .unwrap_or(point.column.0);
+            let end = (point.column.0..self.size.columns)
+                .take_while(|&c| linked(c))
+                .last()
+                .unwrap_or(point.column.0);
             return Some((
-                ClickTarget::Url(link.uri().to_string()),
+                ClickTarget::Url(uri.to_string()),
                 click::Token {
-                    start: col,
-                    end: col + 1,
-                    text: link.uri().to_string(),
+                    start,
+                    end: end + 1,
+                    text: uri.to_string(),
                 },
             ));
         }
@@ -1661,7 +1692,15 @@ impl TerminalPane {
 
     /// Type a path at the prompt, quoted. Relative to the cwd when it lies
     /// beneath it (and `absolute` is false), which is what a command wants.
-    pub fn insert_path(&mut self, path: &std::path::Path, absolute: bool) {
+    /// A name with control bytes is refused rather than typed (see
+    /// `click::typeable`).
+    pub fn insert_path(&mut self, path: &std::path::Path, absolute: bool, cx: &mut Context<Self>) {
+        if !click::typeable(&path.to_string_lossy()) {
+            cx.emit(TerminalEvent::Notice(
+                "not inserted: the name contains control characters".into(),
+            ));
+            return;
+        }
         let text = match (&self.cwd, absolute) {
             (Some(cwd), false) => match path.strip_prefix(cwd) {
                 Ok(rel) if !rel.as_os_str().is_empty() => rel.to_string_lossy().to_string(),
@@ -1676,7 +1715,7 @@ impl TerminalPane {
     /// Change the shell's directory. With shell integration installed this
     /// hands the path off through a file and triggers a zle/readline widget,
     /// so no `cd` command is echoed; otherwise it falls back to typing one.
-    pub fn request_cd(&mut self, path: &std::path::Path) {
+    pub fn request_cd(&mut self, path: &std::path::Path, cx: &mut Context<Self>) {
         use std::os::unix::ffi::OsStrExt as _;
         let Some(session) = &self.session else { return };
         if self.config.shell.integration
@@ -1697,8 +1736,14 @@ impl TerminalPane {
             session.term.lock().scroll_display(Scroll::Bottom);
             return;
         }
-        let quoted = format!("'{}'", path.to_string_lossy().replace('\'', r"'\''"));
-        self.write_command(&format!("cd {quoted}\r"));
+        let text = path.to_string_lossy();
+        if !click::typeable(&text) {
+            cx.emit(TerminalEvent::Notice(
+                "can't cd there: the name contains control characters".into(),
+            ));
+            return;
+        }
+        self.write_command(&format!("cd {}\r", click::shell_quote(&text)));
     }
 
     /// Run a command in the shell without typing it at the prompt. With shell
@@ -2451,13 +2496,19 @@ impl TerminalPane {
         if event.pressed_button.is_none() {
             // cmd-hover (ctrl-hover on Linux): underline whatever a click
             // would open.
+            let mut url = None;
             let span = if open_modifier(&event.modifiers) {
                 self.grid_point(event.position)
                     .and_then(|(point, _, _, row)| {
-                        self.target_at(point).map(|(_, token)| HoverSpan {
-                            row,
-                            start: token.start,
-                            end: token.end,
+                        self.target_at(point).map(|(target, token)| {
+                            if let ClickTarget::Url(u) = target {
+                                url = Some(u);
+                            }
+                            HoverSpan {
+                                row,
+                                start: token.start,
+                                end: token.end,
+                            }
                         })
                     })
             } else {
@@ -2465,8 +2516,9 @@ impl TerminalPane {
                 self.grid_point(event.position)
                     .and_then(|(point, _, _, row)| self.copy_link_span(point, row))
             };
-            if span != self.hover {
+            if span != self.hover || url != self.hover_url {
                 self.hover = span;
+                self.hover_url = url;
                 cx.notify();
             }
             return;
@@ -2846,6 +2898,7 @@ impl Render for TerminalPane {
                 cx.listener(|this, ev: &gpui::ModifiersChangedEvent, _w, cx| {
                     if !open_modifier(&ev.modifiers) && this.hover.is_some() {
                         this.hover = None;
+                        this.hover_url = None;
                         cx.notify();
                     }
                 }),
@@ -2856,19 +2909,38 @@ impl Render for TerminalPane {
             .on_drop(cx.listener(|this, paths: &ExternalPaths, window, cx| {
                 window.focus(&this.focus_handle);
                 for path in paths.paths() {
-                    this.insert_path(path, true);
+                    this.insert_path(path, true, cx);
                 }
                 cx.notify();
             }))
             .on_drop(
                 cx.listener(|this, drag: &crate::tree::TreeDrag, window, cx| {
                     window.focus(&this.focus_handle);
-                    this.insert_path(&drag.path, false);
+                    this.insert_path(&drag.path, false, cx);
                     cx.notify();
                 }),
             )
             .child(TerminalElement::new(cx.entity(), focused))
             .when_some(self.render_gutter(cx), |this, gutter| this.child(gutter))
+            // Where a cmd-click would go, browser-style: the one place an
+            // OSC 8 link's real address is visible.
+            .when_some(self.hover_url.clone(), |this, url| {
+                this.child(
+                    div()
+                        .absolute()
+                        .bottom_1()
+                        .left_1()
+                        .max_w_full()
+                        .px_2()
+                        .py_0p5()
+                        .rounded_md()
+                        .bg(theme.ansi[0])
+                        .text_size(gpui::px(11.0))
+                        .text_color(dim)
+                        .overflow_hidden()
+                        .child(url),
+                )
+            })
             // "N lines above": you're looking at history, and how far back.
             .when(
                 scrolled_lines > 0 && self.search.is_none() && self.child_exited.is_none(),

@@ -62,7 +62,7 @@ fn segment_snippet(ix: usize, seg: &SegmentConfig) -> String {
             s.push_str("  local __gtext=\"\u{e0a0} $__br\"\n");
             if show_dirty {
                 s.push_str(
-                    "  if [[ -n $(command git status --porcelain --untracked-files=no 2>/dev/null | command head -c1) ]]; then ",
+                    "  if [[ -n $(command git -c core.fsmonitor=false status --porcelain --untracked-files=no 2>/dev/null | command head -c1) ]]; then ",
                 );
                 s.push_str(&format!("__gbg=\"{dirty_bg}\"; fi\n"));
             }
@@ -329,7 +329,7 @@ fn bash_segment_snippet(seg: &SegmentConfig) -> String {
             s.push_str("  local __gtext=\"\u{e0a0} $__br\"\n");
             if show_dirty {
                 s.push_str(
-                    "  if [[ -n $(command git status --porcelain --untracked-files=no 2>/dev/null | command head -c1) ]]; then ",
+                    "  if [[ -n $(command git -c core.fsmonitor=false status --porcelain --untracked-files=no 2>/dev/null | command head -c1) ]]; then ",
                 );
                 s.push_str(&format!("__gbg=\"{dirty_bg}\"; fi\n"));
             }

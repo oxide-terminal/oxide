@@ -11,6 +11,28 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+### Security
+
+- The status bar and file tree poll `git status` in whatever directory a
+  pane is in. Git runs the `core.fsmonitor` command from a repository's own
+  `.git/config` during `status`, so an unpacked archive or shared folder
+  carrying a planted one could run code the moment you `cd` into it. Those
+  polls, and the git segment of Oxide's generated prompt, now switch
+  fsmonitor off.
+- Dragging a file into the terminal, "Insert Path", and the `cd` fallback
+  used without shell integration type the quoted path at the prompt. A
+  filename holding control characters (`^U`, carriage return) could clear
+  the line and run a command of its own. Such names are refused with a
+  notice instead.
+- OSC 8 hyperlinks only open `http`, `https` and `mailto` targets. Because
+  the link's text can say anything, a hidden `file://` or app-scheme target
+  could launch something on a cmd-click. While you hold cmd over a link,
+  the real address is shown in the pane's corner, browser-style, and the
+  whole link is underlined rather than one cell.
+- OSC 7 working-directory reports are ignored while the pane's foreground
+  process is `ssh`, so a remote host can't point the file tree and git
+  status at a local directory of its choosing.
+
 ## [0.8.1] - 2026-10-07
 
 ### Fixed

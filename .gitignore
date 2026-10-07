@@ -10,3 +10,5 @@ CLAUDE.md
 /packaging/aur/*/*.tar.gz
 /packaging/aur/*/*.pkg.tar.zst
 /packaging/aur/*/.SRCINFO
+# wrangler tool cache (holds the Cloudflare account name)
+.wrangler/
