@@ -4,6 +4,9 @@ on:
   issues:
     types: [labeled]
 
+# Only secrets and event payload are used; the GITHUB_TOKEN needs no scopes.
+permissions: {}
+
 jobs:
   notify:
     if: github.event.label.name == 'bug'
