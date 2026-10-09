@@ -32,6 +32,8 @@ people. The rename ships as the next minor release, 0.9.0. What to expect:
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-09
+
 ### Changed
 
 - What's New opens on its own after this update (instead of the usual
