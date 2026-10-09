@@ -857,15 +857,21 @@ impl Oxide {
         }
         if let Some(previous) = crate::update::note_launch_version() {
             let current = env!("CARGO_PKG_VERSION");
-            // Long enough to read after the window settles, then gone:
-            // What's New stays in the Help menu.
-            let id = this.push_toast(
-                ToastKind::Info,
-                format!("updated v{previous} → v{current} — click for what's new"),
-                true,
-                false,
-            );
-            this.expire_toast(id, 20, cx);
+            // 0.8.2 only: open What's New outright, so the notice about the
+            // upcoming rename is seen. Drop this branch with the next release.
+            if current == "0.8.2" {
+                this.open_changelog_tab(window, cx);
+            } else {
+                // Long enough to read after the window settles, then gone:
+                // What's New stays in the Help menu.
+                let id = this.push_toast(
+                    ToastKind::Info,
+                    format!("updated v{previous} → v{current} — click for what's new"),
+                    true,
+                    false,
+                );
+                this.expire_toast(id, 20, cx);
+            }
         }
         this.refresh_git_status(cx);
 

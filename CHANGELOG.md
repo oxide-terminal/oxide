@@ -9,7 +9,34 @@ section into the versioned one, and `scripts/release.sh` publishes it as the
 GitHub release notes. **Help → What's New** shows this file inside the app, so
 write for users: what changed and why it matters, not which files moved.
 
+## Upcoming
+
+**Oxide is being renamed to OmniPTY.** Same terminal, same maintainer, new
+name: there's a well-known company called Oxide and the clash was confusing
+people. The rename ships as the next minor release, 0.9.0. What to expect:
+
+- **Nothing to do.** The update installs itself as usual and the app lands as
+  `OmniPTY.app`. Your `config.toml`, themes and pinned workspaces are copied
+  to `~/.config/omnipty` and `~/.cache/omnipty`; the `oxide` directories are
+  left as they are.
+- **A Dock icon pinned to `Oxide.app` will need re-adding.** That's the one
+  visible casualty.
+- **Homebrew:** `brew upgrade --cask oxide-terminal` works one more time,
+  then switch casks: `brew uninstall --cask oxide-terminal && brew install
+  --cask omnipty/tap/omnipty`.
+- **Dotfiles:** `$OXIDE_SESSION` and `$OXIDE_VERSION` stay exported through
+  0.9.x; the new names are `$OMNIPTY_SESSION` and `$OMNIPTY_VERSION`.
+  `TERM_PROGRAM` becomes `OmniPTY`. `theme = "oxide"` keeps working.
+- **New addresses:** omnipty.com and github.com/omnipty. The old ones
+  redirect.
+
 ## [Unreleased]
+
+### Changed
+
+- What's New opens on its own after this update (instead of the usual
+  toast), so the note above about the upcoming rename is seen once. The
+  next update goes back to the toast.
 
 ### Security
 
