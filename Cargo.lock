@@ -3767,6 +3767,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "omnipty"
+version = "0.8.1"
+dependencies = [
+ "alacritty_terminal",
+ "base64",
+ "block",
+ "directories",
+ "flate2",
+ "futures",
+ "gpui",
+ "ignore",
+ "image",
+ "libc",
+ "memchr",
+ "minisign-verify",
+ "notify",
+ "notify-debouncer-full",
+ "objc",
+ "polling",
+ "pulldown-cmark",
+ "raw-window-handle",
+ "serde",
+ "serde_json",
+ "syntect",
+ "toml 0.8.23",
+ "toml_edit 0.22.27",
+ "trash",
+ "two-face",
+ "unicode-width",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3859,38 +3891,6 @@ checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
 dependencies = [
  "futures-core",
  "pin-project-lite",
-]
-
-[[package]]
-name = "oxide"
-version = "0.8.1"
-dependencies = [
- "alacritty_terminal",
- "base64",
- "block",
- "directories",
- "flate2",
- "futures",
- "gpui",
- "ignore",
- "image",
- "libc",
- "memchr",
- "minisign-verify",
- "notify",
- "notify-debouncer-full",
- "objc",
- "polling",
- "pulldown-cmark",
- "raw-window-handle",
- "serde",
- "serde_json",
- "syntect",
- "toml 0.8.23",
- "toml_edit 0.22.27",
- "trash",
- "two-face",
- "unicode-width",
 ]
 
 [[package]]

@@ -28,7 +28,7 @@ const RESET: &str = "\x1b[0m";
 
 /// Scheme of the hyperlink on a code block's "copy" label; the block's index
 /// in [`Rendered::code`] follows. The pane paging the preview acts on it.
-pub const COPY_URI: &str = "oxide-copy:";
+pub const COPY_URI: &str = "omnipty-copy:";
 const COPY_LABEL: &str = " ⧉ copy ";
 
 pub struct Rendered {
@@ -37,11 +37,9 @@ pub struct Rendered {
     pub code: Vec<String>,
 }
 
-/// Write rendered text under `~/.cache/oxide` and return its path.
+/// Write rendered text under `~/.cache/omnipty` and return its path.
 pub fn write_cache(name: &str, rendered: &str) -> Option<PathBuf> {
-    let dir = directories::BaseDirs::new()?
-        .home_dir()
-        .join(".cache/oxide");
+    let dir = crate::paths::cache_dir();
     std::fs::create_dir_all(&dir).ok()?;
     let path = dir.join(name);
     std::fs::write(&path, rendered).ok()?;
@@ -1151,11 +1149,11 @@ mod tests {
         assert_eq!(out.code, ["# note\npreset = \"nord\"", "plain **text**"]);
         assert!(
             out.text
-                .contains("\x1b]8;;oxide-copy:0\x1b\\ ⧉ copy \x1b]8;;\x1b\\"),
+                .contains("\x1b]8;;omnipty-copy:0\x1b\\ ⧉ copy \x1b]8;;\x1b\\"),
             "the label is a hyperlink naming the block: {:?}",
             out.text
         );
-        assert!(out.text.contains("oxide-copy:1"));
+        assert!(out.text.contains("omnipty-copy:1"));
         assert!(
             out.text.contains("\x1b[3;2m# note\x1b[0m"),
             "comment: dim italic, one span: {:?}",
@@ -1206,15 +1204,15 @@ mod tests {
         };
         let row: String = (0..40).map(|c| term.grid()[Line(0)][Column(c)].c).collect();
         let icon = row.chars().position(|c| c == '⧉').expect("label drawn");
-        assert_eq!(uri_at(0, icon).as_deref(), Some("oxide-copy:0"));
+        assert_eq!(uri_at(0, icon).as_deref(), Some("omnipty-copy:0"));
         assert_eq!(
             uri_at(0, icon + 5).as_deref(),
-            Some("oxide-copy:0"),
+            Some("omnipty-copy:0"),
             "…copy"
         );
         assert_eq!(uri_at(0, icon - 2), None, "the border isn't part of it");
         assert_eq!(uri_at(1, icon), None, "nor is the code");
-        assert_eq!(uri_at(4, icon).as_deref(), Some("oxide-copy:1"));
+        assert_eq!(uri_at(4, icon).as_deref(), Some("omnipty-copy:1"));
     }
 
     #[test]
@@ -1292,14 +1290,14 @@ mod tests {
 
     #[test]
     fn html_becomes_markdown() {
-        let md = "<!-- hidden\nstill hidden --><p align=\"center\">\n  <img src=\"i.png\" width=\"9\" alt=\"Icon\" />\n</p>\n\n<h1 align=\"center\">Oxide</h1>\n<p>\n  A &amp; B<br/>\n  <em>it</em> <strong>b</strong> <kbd>k</kbd> <a href=\"https://x\">site</a>\n</p>\nVec<String> and `<p>` stay\n";
+        let md = "<!-- hidden\nstill hidden --><p align=\"center\">\n  <img src=\"i.png\" width=\"9\" alt=\"Icon\" />\n</p>\n\n<h1 align=\"center\">OmniPTY</h1>\n<p>\n  A &amp; B<br/>\n  <em>it</em> <strong>b</strong> <kbd>k</kbd> <a href=\"https://x\">site</a>\n</p>\nVec<String> and `<p>` stay\n";
         let out = render(md, 40).text;
         let text = plain(&out);
         assert!(!text.contains("hidden") && !text.contains("<p align") && !text.contains("</"));
         assert!(text.contains("[image: Icon]"), "{text}");
-        let title = out.lines().find(|l| l.contains("Oxide")).unwrap();
-        assert!(title.contains("\x1b[1m\x1b[4mOxide"), "h1 is a heading");
-        assert_eq!(plain(title), format!("{}Oxide", " ".repeat(17)), "centered");
+        let title = out.lines().find(|l| l.contains("OmniPTY")).unwrap();
+        assert!(title.contains("\x1b[1m\x1b[4mOmniPTY"), "h1 is a heading");
+        assert_eq!(plain(title), format!("{}OmniPTY", " ".repeat(16)), "centered");
         assert!(
             text.contains("\nA & B\nit b k site (https://x)\n"),
             "entity decoded, br breaks, the HTML's indentation dropped: {text}"

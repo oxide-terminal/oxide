@@ -1,14 +1,14 @@
 [Desktop Entry]
 Type=Application
-Name=Oxide
+Name=OmniPTY
 GenericName=Terminal
 Comment=A native, GPU-rendered terminal emulator with a vim-driven file tree drawer, splits and workspaces
-Exec=oxide
-Icon=oxide
+Exec=omnipty
+Icon=omnipty
 Terminal=false
 Categories=System;TerminalEmulator;
 Keywords=terminal;shell;command;prompt;
-StartupWMClass=oxide
+StartupWMClass=omnipty
 # For xdg-terminal-exec (Omarchy's Super+Return, `omarchy launch tui`, ...).
 X-TerminalArgExec=-e
 X-TerminalArgAppId=--app-id=

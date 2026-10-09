@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::config::schema::PromptConfig;
 
 /// The silent-cd and silent-run channels are one file per shell session,
-/// keyed by the `OXIDE_SESSION` value the app puts in each shell's
+/// keyed by the `OMNIPTY_SESSION` value the app puts in each shell's
 /// environment. A shared file would race: restoring a workspace with four
 /// startup commands writes four targets at nearly the same instant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,8 +23,8 @@ impl Channel {
     }
 }
 
-/// `~/.cache/oxide/<cd|run>/<session>` — where the generated shell handlers
-/// look for their target, using `$OXIDE_SESSION`.
+/// `~/.cache/omnipty/<cd|run>/<session>` — where the generated shell handlers
+/// look for their target, using `$OMNIPTY_SESSION`.
 pub fn channel_path(channel: Channel, session: &str) -> Option<PathBuf> {
     Some(cache_dir()?.join(channel.dir_name()).join(session))
 }
@@ -71,13 +71,12 @@ pub fn clean_stale_channels() {
 }
 
 fn cache_dir() -> Option<PathBuf> {
-    let home = directories::BaseDirs::new()?.home_dir().to_path_buf();
-    Some(home.join(".cache/oxide"))
+    Some(crate::paths::cache_dir())
 }
 
 /// Hand a path to a shell without putting it on the command line. Returns the
 /// file's name, which is deliberately made of characters every shell leaves
-/// alone, so the caller can embed it in a `$HOME/.cache/oxide/edit/…`
+/// alone, so the caller can embed it in a `$HOME/.cache/omnipty/edit/…`
 /// reference that needs no quoting anywhere.
 ///
 /// Unique per call: two panes opening files at once must not race, and the
@@ -151,7 +150,7 @@ pub fn setup(config: &Config, shell_program: &str) -> ShellIntegration {
         if let Ok(user_zdotdir) = std::env::var("ZDOTDIR") {
             integration
                 .env
-                .insert("_OXIDE_USER_ZDOTDIR".into(), user_zdotdir);
+                .insert("_OMNIPTY_USER_ZDOTDIR".into(), user_zdotdir);
         }
         integration
             .env
@@ -195,13 +194,13 @@ fn write_zsh_shim(
 
     let sandwich = |file: &str, extra: &str| -> String {
         format!(
-            r#"# Oxide ZDOTDIR shim — sources your real {file}, never modifies it.
-_oxide_shim="$ZDOTDIR"
-export ZDOTDIR="${{_OXIDE_USER_ZDOTDIR:-$HOME}}"
+            r#"# OmniPTY ZDOTDIR shim — sources your real {file}, never modifies it.
+_omnipty_shim="$ZDOTDIR"
+export ZDOTDIR="${{_OMNIPTY_USER_ZDOTDIR:-$HOME}}"
 [[ -f "$ZDOTDIR/{file}" ]] && builtin source "$ZDOTDIR/{file}"
-export _OXIDE_USER_ZDOTDIR="$ZDOTDIR"
-export ZDOTDIR="$_oxide_shim"
-unset _oxide_shim
+export _OMNIPTY_USER_ZDOTDIR="$ZDOTDIR"
+export ZDOTDIR="$_omnipty_shim"
+unset _omnipty_shim
 {extra}"#
         )
     };
@@ -209,7 +208,7 @@ unset _oxide_shim
     std::fs::write(zdotdir.join(".zshenv"), sandwich(".zshenv", ""))?;
     std::fs::write(zdotdir.join(".zprofile"), sandwich(".zprofile", ""))?;
     let zshrc_tail = format!(
-        "builtin source \"{}\"\n# Hand rc-file resolution back to the user's zsh for subshells.\nexport ZDOTDIR=\"${{_OXIDE_USER_ZDOTDIR:-$HOME}}\"\nunset _OXIDE_USER_ZDOTDIR\n",
+        "builtin source \"{}\"\n# Hand rc-file resolution back to the user's zsh for subshells.\nexport ZDOTDIR=\"${{_OMNIPTY_USER_ZDOTDIR:-$HOME}}\"\nunset _OMNIPTY_USER_ZDOTDIR\n",
         init_path.to_string_lossy()
     );
     std::fs::write(zdotdir.join(".zshrc"), sandwich(".zshrc", &zshrc_tail))?;

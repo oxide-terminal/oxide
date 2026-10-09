@@ -1,4 +1,4 @@
-//! Decoders for the OSC sequences Oxide consumes itself: the OSC 133 prompt
+//! Decoders for the OSC sequences OmniPTY consumes itself: the OSC 133 prompt
 //! markers the shell integration emits, OSC 7 (cwd), and OSC 9 / 777
 //! (desktop notifications).
 //!
@@ -15,7 +15,7 @@ pub enum MarkerKind {
     PromptStart,
     /// OSC 133;B — the prompt is drawn; what follows is user input.
     InputStart,
-    /// OSC 133;C — a command is starting. Oxide's integration adds the typed
+    /// OSC 133;C — a command is starting. OmniPTY's integration adds the typed
     /// line as `cmdline=…`.
     CommandStart { cmdline: Option<String> },
     /// OSC 133;D;<exit> — the command finished. `None` when the exit code is

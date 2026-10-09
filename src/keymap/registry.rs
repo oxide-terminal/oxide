@@ -1,7 +1,7 @@
 //! The action registry: one row per action, shared by the command palette,
 //! the keymap config, and the docs.
 //!
-//! The rows live in `actions.rs`, where the `oxide_actions!` macro defines
+//! The rows live in `actions.rs`, where the `omnipty_actions!` macro defines
 //! each action type *and* its registry entry in one place so the two can't
 //! drift apart.
 
@@ -39,13 +39,13 @@ pub struct ActionMeta {
 /// Define every action type and its registry row together.
 ///
 /// ```ignore
-/// oxide_actions! {
+/// omnipty_actions! {
 ///     SplitRight => "pane::split_right", "Split Right", "Pane", ["vsplit"], Root;
 /// }
 /// ```
-macro_rules! oxide_actions {
+macro_rules! omnipty_actions {
     ($( $name:ident => $id:literal, $title:expr, $category:literal, [$($alias:literal),* $(,)?], $ctx:ident; )*) => {
-        gpui::actions!(oxide, [$($name),*]);
+        gpui::actions!(omnipty, [$($name),*]);
 
         pub static REGISTRY: &[$crate::keymap::registry::ActionMeta] = &[
             $(
@@ -61,7 +61,7 @@ macro_rules! oxide_actions {
         ];
     };
 }
-pub(crate) use oxide_actions;
+pub(crate) use omnipty_actions;
 
 pub fn all() -> &'static [ActionMeta] {
     super::actions::REGISTRY
@@ -151,7 +151,7 @@ mod tests {
             .map(|m| (m.build)().name().to_string())
             .collect();
         for data in gpui::generate_list_of_all_registered_actions() {
-            if data.name.starts_with("oxide::") {
+            if data.name.starts_with("omnipty::") {
                 assert!(
                     rows.contains(data.name),
                     "{} has no registry row",

@@ -250,12 +250,12 @@ mod tests {
             "",
             "src/app.rs",
             "Überstraße/ÄPFEL.md",
-            "target/debug/deps/oxide-032b53269b7ca225",
+            "target/debug/deps/omnipty-032b53269b7ca225",
             "s/r/c/a/p/p",
             "src/app.rs",
         ];
         for query in [
-            "", "s", "sap", "src/app", "apfel", "SRC", "x y z", "oxide032",
+            "", "s", "sap", "src/app", "apfel", "SRC", "x y z", "omnipty032",
         ] {
             let mut reused = Matcher::new(query);
             for c in candidates {

@@ -9,6 +9,7 @@ mod markdown;
 mod notifications;
 mod palette;
 mod panes;
+mod paths;
 mod prompt;
 mod startup;
 mod terminal;
@@ -20,14 +21,14 @@ use gpui::{App, Application, Menu, MenuItem, SystemMenuType};
 
 use crate::keymap::actions::*;
 
-pub(crate) const WEBSITE_URL: &str = "https://oxideterminal.com";
+pub(crate) const WEBSITE_URL: &str = "https://omnipty.com";
 
 /// The application menus. macOS installs them in the menu bar; Linux has no
 /// menu bar, so the same list backs the ☰ popover in the window's top-left
 /// corner, minus the entries that only AppKit can honour.
 pub(crate) fn menus() -> Vec<Menu> {
-    let mut oxide = vec![
-        MenuItem::action("About Oxide", About),
+    let mut omnipty = vec![
+        MenuItem::action("About OmniPTY", About),
         MenuItem::action("Check for Updates…", CheckForUpdates),
         MenuItem::separator(),
         MenuItem::action("Settings…", OpenSettings),
@@ -36,20 +37,20 @@ pub(crate) fn menus() -> Vec<Menu> {
     if cfg!(target_os = "macos") {
         // Services and app hiding are AppKit concepts with no Wayland/X11
         // equivalent; a tiling WM has nowhere to hide a window to.
-        oxide.extend([
+        omnipty.extend([
             MenuItem::separator(),
             MenuItem::os_submenu("Services", SystemMenuType::Services),
             MenuItem::separator(),
-            MenuItem::action("Hide Oxide", Hide),
+            MenuItem::action("Hide OmniPTY", Hide),
             MenuItem::action("Hide Others", HideOthers),
         ]);
     }
-    oxide.extend([MenuItem::separator(), MenuItem::action("Quit Oxide", Quit)]);
+    omnipty.extend([MenuItem::separator(), MenuItem::action("Quit OmniPTY", Quit)]);
     vec![
         Menu {
             // The first menu takes the app's name in the menu bar.
-            name: "Oxide".into(),
-            items: oxide,
+            name: "OmniPTY".into(),
+            items: omnipty,
         },
         Menu {
             name: "File".into(),
@@ -128,7 +129,7 @@ pub(crate) fn menus() -> Vec<Menu> {
         Menu {
             name: "Help".into(),
             items: vec![
-                MenuItem::action("Oxide Help", OpenHelp),
+                MenuItem::action("OmniPTY Help", OpenHelp),
                 MenuItem::action("What's New", ShowChangelog),
                 MenuItem::action("Report an Issue", ReportIssue),
             ],
@@ -141,7 +142,7 @@ fn main() {
     // display or any state.
     let launch = match cli::parse(std::env::args().skip(1)) {
         Ok(cli::Parsed::Version) => {
-            println!("oxide {}", env!("CARGO_PKG_VERSION"));
+            println!("omnipty {}", env!("CARGO_PKG_VERSION"));
             return;
         }
         Ok(cli::Parsed::Help) => {
@@ -150,7 +151,7 @@ fn main() {
         }
         Ok(cli::Parsed::Run(launch)) => launch,
         Err(message) => {
-            eprintln!("oxide: {message}\n{}", cli::USAGE);
+            eprintln!("omnipty: {message}\n{}", cli::USAGE);
             std::process::exit(2);
         }
     };
@@ -161,22 +162,29 @@ fn main() {
     let restore = command.is_none();
     cli::install(launch);
 
+    // A bundle the old updater wrote OmniPTY into under its former name
+    // moves to OmniPTY.app and relaunches from there.
+    #[cfg(target_os = "macos")]
+    if update::relocate_renamed_bundle() {
+        return;
+    }
+
     let (config, config_error) = config::load();
     // Silent-cd/run handoff files a killed shell never consumed.
     prompt::integration::clean_stale_channels();
 
-    // Closing the last window leaves Oxide running, the way most macOS apps
+    // Closing the last window leaves OmniPTY running, the way most macOS apps
     // behave; clicking the Dock icon brings a fresh window back. cmd-q quits.
     let app = Application::new();
     // AppKit only delivers this when the app has no open windows, so there is
     // nothing further to check — a closed handle can linger in cx.windows().
     app.on_reopen(|cx| {
         let (config, error) = config::load();
-        app::open_oxide_window(config, error, None, None, true, cx);
+        app::open_omnipty_window(config, error, None, None, true, cx);
     });
     app.run(move |cx: &mut App| {
         // Must happen before launch completes, or banners never show while
-        // Oxide is frontmost.
+        // OmniPTY is frontmost.
         notifications::init();
 
         // Linux has no Dock to reopen from, and a windowless process is
@@ -215,7 +223,7 @@ fn main() {
             .ok();
 
         // Defaults merged with the user's [keymap]; bad entries are skipped
-        // here and reported in the window banner by `Oxide::new`.
+        // here and reported in the window banner by `OmniPTY::new`.
         cx.bind_keys(keymap::resolve(&config.keymap).bindings());
 
         // App-level actions (no window required).
@@ -231,14 +239,14 @@ fn main() {
         cx.on_action(|_: &NewWindow, cx| {
             if cx.windows().is_empty() {
                 let (config, error) = config::load();
-                app::open_oxide_window(config, error, None, None, false, cx);
+                app::open_omnipty_window(config, error, None, None, false, cx);
             }
         });
         cx.on_action(|_: &OpenHelp, cx| cx.open_url(&format!("{WEBSITE_URL}/docs/")));
         cx.on_action(|_: &ReportIssue, cx| cx.open_url(&format!("{WEBSITE_URL}/issues/new")));
 
         // The menu bar is a macOS thing; on Linux the window draws its own
-        // ☰ menu from the same list (see `Oxide::render_app_menu`).
+        // ☰ menu from the same list (see `OmniPTY::render_app_menu`).
         if cfg!(target_os = "macos") {
             cx.set_menus(menus());
         }
@@ -253,9 +261,9 @@ fn main() {
                     for handle in cx.windows() {
                         let handled = handle
                             .update(cx, |root, window, cx| {
-                                root.downcast::<app::Oxide>()
-                                    .map(|oxide| {
-                                        oxide.update(cx, |o, cx| {
+                                root.downcast::<app::OmniPTY>()
+                                    .map(|omnipty| {
+                                        omnipty.update(cx, |o, cx| {
                                             o.on_notification_click(key, window, cx)
                                         })
                                     })
@@ -272,7 +280,7 @@ fn main() {
         })
         .detach();
 
-        app::open_oxide_window(config, config_error, None, command, restore, cx);
+        app::open_omnipty_window(config, config_error, None, command, restore, cx);
     });
 }
 

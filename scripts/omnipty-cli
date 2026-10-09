@@ -1,10 +1,10 @@
 #!/bin/bash
-# CLI shim: `oxide [dir] [--no-startup-commands]` opens Oxide from another
+# CLI shim: `omnipty [dir] [--no-startup-commands]` opens OmniPTY from another
 # terminal.
 #
-# macOS install: cp scripts/oxide-cli /usr/local/bin/oxide && chmod +x /usr/local/bin/oxide
+# macOS install: cp scripts/omnipty-cli /usr/local/bin/omnipty && chmod +x /usr/local/bin/omnipty
 #
-# Linux doesn't need it: the binary itself is `oxide` on PATH and takes the
+# Linux doesn't need it: the binary itself is `omnipty` on PATH and takes the
 # same arguments. Install this ahead of it (say, in ~/.local/bin) only if
 # you want the macOS behaviour of returning to the shell immediately
 # instead of holding the terminal until the window closes.
@@ -26,18 +26,18 @@ done
 
 case "$(uname -s)" in
   Darwin)
-    open -a Oxide --args "${dir:-$PWD}" "${flags[@]}"
+    open -a OmniPTY --args "${dir:-$PWD}" "${flags[@]}"
     ;;
   *)
-    # The real binary: OXIDE_BIN, or the first `oxide` on PATH that isn't
+    # The real binary: OMNIPTY_BIN, or the first `omnipty` on PATH that isn't
     # this script. Detach from the calling terminal so the window outlives
     # the shell that launched it.
     self="$(readlink -f "$0")"
-    bin="${OXIDE_BIN:-}"
+    bin="${OMNIPTY_BIN:-}"
     if [[ -z "$bin" ]]; then
       IFS=: read -ra dirs <<< "$PATH"
       for d in "${dirs[@]}"; do
-        candidate="$d/oxide"
+        candidate="$d/omnipty"
         if [[ -x "$candidate" && "$(readlink -f "$candidate")" != "$self" ]]; then
           bin="$candidate"
           break
@@ -45,7 +45,7 @@ case "$(uname -s)" in
       done
     fi
     if [[ -z "$bin" || ! -x "$bin" ]]; then
-      echo "oxide: can't find the oxide binary on PATH (set OXIDE_BIN)" >&2
+      echo "omnipty: can't find the omnipty binary on PATH (set OMNIPTY_BIN)" >&2
       exit 1
     fi
     if command -v setsid >/dev/null 2>&1; then

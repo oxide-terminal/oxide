@@ -111,7 +111,7 @@ pub fn shell_name(program: &str) -> &str {
         .unwrap_or("")
 }
 
-/// Whether this shell understands Bourne syntax, so Oxide can hand it a `[ -n
+/// Whether this shell understands Bourne syntax, so OmniPTY can hand it a `[ -n
 /// … ]` snippet directly. fish, the csh family, nushell, xonsh and friends do
 /// not, and need such a snippet delegated to `/bin/sh`.
 pub fn is_posix_shell(program: &str) -> bool {
@@ -129,7 +129,7 @@ pub struct TerminalSession {
     master_fd: RawFd,
     child_pid: i32,
     join: Option<JoinHandle<()>>,
-    /// Unique per spawn; exported to the shell as `OXIDE_SESSION` so the
+    /// Unique per spawn; exported to the shell as `OMNIPTY_SESSION` so the
     /// silent-cd/run handlers read their own channel file.
     session_id: String,
 }
@@ -160,14 +160,18 @@ impl TerminalSession {
         let mut env = options.env;
         env.insert("TERM".into(), "xterm-256color".into());
         env.insert("COLORTERM".into(), "truecolor".into());
+        env.insert("OMNIPTY_VERSION".into(), env!("CARGO_PKG_VERSION").into());
+        // The pre-rename names, kept through one minor so dotfiles that read
+        // $OXIDE_SESSION keep working. Remove with 0.10.
         env.insert("OXIDE_VERSION".into(), env!("CARGO_PKG_VERSION").into());
         // Always ours: launched from another terminal, the inherited value
-        // would have programs speak that terminal's dialect at Oxide.
-        env.insert("TERM_PROGRAM".into(), "Oxide".into());
+        // would have programs speak that terminal's dialect at OmniPTY.
+        env.insert("TERM_PROGRAM".into(), "OmniPTY".into());
         env.insert(
             "TERM_PROGRAM_VERSION".into(),
             env!("CARGO_PKG_VERSION").into(),
         );
+        env.insert("OMNIPTY_SESSION".into(), session_id.clone());
         env.insert("OXIDE_SESSION".into(), session_id.clone());
         // GUI-launched apps get no locale; a C-locale shell breaks multibyte
         // input and prompt glyphs. Mirror Terminal.app: set one if absent.
@@ -212,7 +216,7 @@ impl TerminalSession {
         ))
     }
 
-    /// The value of `OXIDE_SESSION` in this shell's environment.
+    /// The value of `OMNIPTY_SESSION` in this shell's environment.
     pub fn id(&self) -> &str {
         &self.session_id
     }
@@ -503,7 +507,7 @@ mod tests {
                 }
             }
             let text = visible_text(&session);
-            if text.contains(PLACEHOLDER) && text.contains("<Oxide>") {
+            if text.contains(PLACEHOLDER) && text.contains("<OmniPTY>") {
                 break;
             }
             std::thread::sleep(Duration::from_millis(50));
@@ -511,7 +515,7 @@ mod tests {
         let text = visible_text(&session);
         assert!(text.contains(PLACEHOLDER), "no image cell in:\n{text}");
         assert!(
-            text.contains("<Oxide>"),
+            text.contains("<OmniPTY>"),
             "TERM_PROGRAM not ours in:\n{text}"
         );
         assert!(
@@ -542,13 +546,13 @@ mod tests {
             images: true,
         };
         let (session, _rx) = TerminalSession::spawn(options, size).expect("spawn pty");
-        session.write_input(b"echo oxide_roundtrip_$((20+22))\r".to_vec());
+        session.write_input(b"echo omnipty_roundtrip_$((20+22))\r".to_vec());
 
         let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             std::thread::sleep(Duration::from_millis(100));
             let text = visible_text(&session);
-            if text.contains("oxide_roundtrip_42") {
+            if text.contains("omnipty_roundtrip_42") {
                 break;
             }
             if Instant::now() > deadline {

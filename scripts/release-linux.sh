@@ -1,7 +1,7 @@
 #!/bin/bash
 # The Linux half of a release. release.sh runs on the Mac (DMGs, manifest,
 # cask, site changelog) and GPUI can't be cross-compiled, so the tarball is
-# built here, published to downloads.oxideterminal.com (R2) beside the DMGs,
+# built here, published to downloads.omnipty.com (R2) beside the DMGs,
 # mirrored onto the same GitHub release, and added to the update manifest:
 #
 #   scripts/release-linux.sh            build, sign, upload, bump the AUR PKGBUILD
@@ -10,7 +10,7 @@
 # Run it from the release commit (the one tagged v<version>), after
 # release.sh has finished. Then push the AUR package:
 #
-#   cd packaging/aur/oxide-terminal-bin
+#   cd packaging/aur/omnipty-bin
 #   makepkg --printsrcinfo > .SRCINFO
 #   git -C <aur clone> ... (see RELEASING.md)
 #
@@ -21,13 +21,13 @@ cd "$(dirname "$0")/.."
 VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
 TAG="v$VERSION"
 ARCH=$(uname -m)
-TARBALL="target/oxide-${VERSION}-linux-${ARCH}.tar.gz"
-PKGBUILD="packaging/aur/oxide-terminal-bin/PKGBUILD"
+TARBALL="target/omnipty-${VERSION}-linux-${ARCH}.tar.gz"
+PKGBUILD="packaging/aur/omnipty-bin/PKGBUILD"
 
-BUCKET="${R2_BUCKET:-oxide-releases}"
-DOWNLOADS="${DOWNLOADS_URL:-https://downloads.oxideterminal.com}"
-UPDATE_KEY="${UPDATE_KEY:-$HOME/.config/oxide-release/update.key}"
-PREFIX="oxide/$VERSION"
+BUCKET="${R2_BUCKET:-omnipty-releases}"
+DOWNLOADS="${DOWNLOADS_URL:-https://downloads.omnipty.com}"
+UPDATE_KEY="${UPDATE_KEY:-$HOME/.config/omnipty-release/update.key}"
+PREFIX="omnipty/$VERSION"
 WRANGLER=(npx --yes wrangler)
 
 # The binary must be what the tag describes. HEAD may sit past the tag as
@@ -85,7 +85,7 @@ if [[ -z "${NO_UPLOAD:-}" ]]; then
   echo "==> signing the tarball"
   rm -f "$TARBALL.minisig"
   minisign -S -s "$UPDATE_KEY" -m "$TARBALL" -x "$TARBALL.minisig" \
-    -t "oxide $VERSION linux-$ARCH" -c "Oxide $VERSION linux-$ARCH"
+    -t "omnipty $VERSION linux-$ARCH" -c "OmniPTY $VERSION linux-$ARCH"
   minisign -V -p update.pub -m "$TARBALL" -x "$TARBALL.minisig" -q
 
   put() {  # put <local file> <key> <content-type> <cache-control>
@@ -138,8 +138,8 @@ if [[ -z "${NO_UPLOAD:-}" ]]; then
   # What the website's Linux download link points at. Only when this is the
   # current release, for the same reason as stable.json above.
   if [[ "$STABLE_VERSION" == "$VERSION" ]]; then
-    echo "==> refreshing $DOWNLOADS/oxide/latest/oxide-linux-$ARCH.tar.gz"
-    put "$TARBALL" "oxide/latest/oxide-linux-$ARCH.tar.gz" application/gzip "public, max-age=300"
+    echo "==> refreshing $DOWNLOADS/omnipty/latest/omnipty-linux-$ARCH.tar.gz"
+    put "$TARBALL" "omnipty/latest/omnipty-linux-$ARCH.tar.gz" application/gzip "public, max-age=300"
   fi
 fi
 
@@ -148,11 +148,11 @@ fi
 sed -i \
   -e "s/^pkgver=.*/pkgver=$VERSION/" \
   -e "s/^pkgrel=.*/pkgrel=1/" \
-  -e "s#^source=.*#source=(\"$DOWNLOADS/oxide/\${pkgver}/oxide-\${pkgver}-linux-x86_64.tar.gz\")#" \
+  -e "s#^source=.*#source=(\"$DOWNLOADS/omnipty/\${pkgver}/omnipty-\${pkgver}-linux-x86_64.tar.gz\")#" \
   -e "s/^sha256sums=.*/sha256sums=('$SHA')/" \
   "$PKGBUILD"
 echo "bumped $PKGBUILD to $VERSION ($SHA)"
 echo
 echo "Next: commit the PKGBUILD, then publish it:"
-echo "  cd packaging/aur/oxide-terminal-bin && makepkg --printsrcinfo > .SRCINFO"
+echo "  cd packaging/aur/omnipty-bin && makepkg --printsrcinfo > .SRCINFO"
 echo "  (copy PKGBUILD + .SRCINFO into your AUR clone, commit, push)"

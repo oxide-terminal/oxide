@@ -12,13 +12,7 @@ pub use schema::Config;
 pub use theme::Theme;
 
 pub fn config_path() -> PathBuf {
-    if let Ok(p) = std::env::var("OXIDE_CONFIG") {
-        return PathBuf::from(p);
-    }
-    let home = directories::BaseDirs::new()
-        .map(|d| d.home_dir().to_path_buf())
-        .unwrap_or_else(|| PathBuf::from("/"));
-    home.join(".config/oxide/config.toml")
+    crate::paths::config_path()
 }
 
 /// Load the config file. Returns the parsed config (or defaults) plus an error
@@ -70,7 +64,7 @@ fn validate(config: &Config) -> Option<String> {
         ("preset_light", &colors.preset_light),
     ] {
         if let Some(preset) = preset
-            && !theme::PRESET_NAMES.contains(&preset.as_str())
+            && theme::canonical_preset(preset).is_none()
         {
             return Some(format!(
                 "unknown color {key} \"{preset}\" — available: {}",
@@ -172,7 +166,7 @@ const LINUX_KEY_SPELLINGS: &[(&str, &str)] = &[
     ("cmd-r", "ctrl-shift-r"),
 ];
 
-const DEFAULT_CONFIG_FILE: &str = r##"# Oxide configuration.
+const DEFAULT_CONFIG_FILE: &str = r##"# OmniPTY configuration.
 # This file was generated on first run; every value shown is the default.
 # Font and color changes apply live; [shell] and [prompt] changes apply to
 # newly started sessions.
@@ -227,7 +221,7 @@ open_on_startup   = true      # false starts with the drawer hidden (cmd-b shows
 [editor]
 open_in = "tab"               # tab | split — where a file opens when the focused pane is
                               # busy (a terminal editor still showing the last file)
-# open_at_line = "myeditor --line {line} {path}"   # for editors Oxide doesn't know
+# open_at_line = "myeditor --line {line} {path}"   # for editors OmniPTY doesn't know
 
 [markdown]
 preview_in = "tab"            # tab | split — where a markdown preview opens
@@ -255,7 +249,7 @@ passthrough_osc9    = true    # let programs post notifications (OSC 9 / OSC 777
 
 [commands]
 track        = true           # the command log: status bar, tab dots, cmd-r history, gutter
-emit_cmdline = true           # the shell sends each command line to Oxide (memory only)
+emit_cmdline = true           # the shell sends each command line to OmniPTY (memory only)
 max_entries  = 500
 
 [images]
@@ -267,7 +261,7 @@ preview_in   = "tab"          # tab | split — where a picture opened from the 
 [workspaces]
 run_startup_commands = true   # re-run each pane's saved startup command when a pinned
                               # workspace is restored (skip once: --no-startup-commands,
-                              # or hold shift while Oxide launches)
+                              # or hold shift while OmniPTY launches)
 startup_timeout      = "5s"   # give up on a pane's command if its shell isn't ready by then
 
 # [keymap]                    # keystroke = "action id"; see the keybindings docs
@@ -280,7 +274,7 @@ startup_timeout      = "5s"   # give up on a pane's command if its shell isn't r
 
 [colors]
 # Presets: catppuccin-mocha | catppuccin-latte | gruvbox-dark | tokyonight
-#          | dracula | nord | solarized-dark | oxide
+#          | dracula | nord | solarized-dark | omnipty
 #          | ethereal | everforest | flexoki-light | hackerman | kanagawa
 #          | last-horizon | lumon | lupine | matte-black | miasma | osaka-jade
 #          | retro-82 | ristretto | rose-pine-dawn | solitude | vantablack | white

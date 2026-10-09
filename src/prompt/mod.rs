@@ -37,14 +37,14 @@ fn segment_snippet(ix: usize, seg: &SegmentConfig) -> String {
                 CwdStyle::Basename => "local __cwd=\"${PWD:t}\"\n".to_string(),
                 CwdStyle::TruncateToRepo => concat!(
                     "local __cwd=\"${(%):-%~}\"\n",
-                    "local __root=\"\"\n(( __oxide_git_ok )) && __root=$(command git rev-parse --show-toplevel 2>/dev/null)\n",
+                    "local __root=\"\"\n(( __omnipty_git_ok )) && __root=$(command git rev-parse --show-toplevel 2>/dev/null)\n",
                     "if [[ -n \"$__root\" && \"$PWD\" == \"$__root\"* ]]; then __cwd=\"${__root:t}${PWD#$__root}\"; fi\n",
                 )
                 .to_string(),
             };
             format!(
                 "{compute}(( ${{#__cwd}} > {max_len} )) && __cwd=\"…${{__cwd: -{max_len}}}\"\n\
-                 __oxide_seg \"$__cwd\" \"{fg}\" \"{bg}\" {bold}\n"
+                 __omnipty_seg \"$__cwd\" \"{fg}\" \"{bg}\" {bold}\n"
             )
         }
         SegmentKind::Git => {
@@ -53,7 +53,7 @@ fn segment_snippet(ix: usize, seg: &SegmentConfig) -> String {
             let ahead_behind = opts.ahead_behind.unwrap_or(true);
             let mut s = String::new();
             s.push_str(
-                "local __br=\"\"\n(( __oxide_git_ok )) && __br=$(command git symbolic-ref --short HEAD 2>/dev/null || command git rev-parse --short HEAD 2>/dev/null)\n",
+                "local __br=\"\"\n(( __omnipty_git_ok )) && __br=$(command git symbolic-ref --short HEAD 2>/dev/null || command git rev-parse --short HEAD 2>/dev/null)\n",
             );
             s.push_str("if [[ -n \"$__br\" ]]; then\n");
             s.push_str(&format!("  local __gbg=\"{bg}\"\n"));
@@ -77,7 +77,7 @@ fn segment_snippet(ix: usize, seg: &SegmentConfig) -> String {
                 s.push_str("  fi\n");
             }
             s.push_str(&format!(
-                "  __oxide_seg \"$__gtext\" \"{fg}\" \"$__gbg\" {bold}\n"
+                "  __omnipty_seg \"$__gtext\" \"{fg}\" \"$__gbg\" {bold}\n"
             ));
             s.push_str("fi\n");
             s
@@ -86,38 +86,38 @@ fn segment_snippet(ix: usize, seg: &SegmentConfig) -> String {
             let hide = opts.hide_on_success.unwrap_or(true);
             if hide {
                 format!(
-                    "if (( __oxide_exit != 0 )); then __oxide_seg \"✗ $__oxide_exit\" \"{fg}\" \"{bg}\" {bold}; fi\n"
+                    "if (( __omnipty_exit != 0 )); then __omnipty_seg \"✗ $__omnipty_exit\" \"{fg}\" \"{bg}\" {bold}; fi\n"
                 )
             } else {
-                format!("__oxide_seg \"$__oxide_exit\" \"{fg}\" \"{bg}\" {bold}\n")
+                format!("__omnipty_seg \"$__omnipty_exit\" \"{fg}\" \"{bg}\" {bold}\n")
             }
         }
         SegmentKind::Time => {
             let format = opts.format.clone().unwrap_or_else(|| "%H:%M".into());
-            format!("__oxide_seg \"${{(%):-%D{{{format}}}}}\" \"{fg}\" \"{bg}\" {bold}\n")
+            format!("__omnipty_seg \"${{(%):-%D{{{format}}}}}\" \"{fg}\" \"{bg}\" {bold}\n")
         }
         SegmentKind::User => {
-            format!("__oxide_seg \"${{(%):-%n}}\" \"{fg}\" \"{bg}\" {bold}\n")
+            format!("__omnipty_seg \"${{(%):-%n}}\" \"{fg}\" \"{bg}\" {bold}\n")
         }
         SegmentKind::Host => {
-            format!("__oxide_seg \"${{(%):-%m}}\" \"{fg}\" \"{bg}\" {bold}\n")
+            format!("__omnipty_seg \"${{(%):-%m}}\" \"{fg}\" \"{bg}\" {bold}\n")
         }
         SegmentKind::Duration => {
             format!(
-                "if [[ -n \"$__oxide_dur\" ]] && (( __oxide_dur >= 2.0 )); then\n\
+                "if [[ -n \"$__omnipty_dur\" ]] && (( __omnipty_dur >= 2.0 )); then\n\
                  \x20 local __ds\n\
-                 \x20 if (( __oxide_dur >= 60 )); then __ds=\"$(( ${{__oxide_dur%%.*}} / 60 ))m$(( ${{__oxide_dur%%.*}} % 60 ))s\"; else __ds=$(printf '%.1fs' \"$__oxide_dur\"); fi\n\
-                 \x20 __oxide_seg \"$__ds\" \"{fg}\" \"{bg}\" {bold}\n\
+                 \x20 if (( __omnipty_dur >= 60 )); then __ds=\"$(( ${{__omnipty_dur%%.*}} / 60 ))m$(( ${{__omnipty_dur%%.*}} % 60 ))s\"; else __ds=$(printf '%.1fs' \"$__omnipty_dur\"); fi\n\
+                 \x20 __omnipty_seg \"$__ds\" \"{fg}\" \"{bg}\" {bold}\n\
                  fi\n"
             )
         }
         SegmentKind::Text => {
             let text = zsh_dq(opts.text.as_deref().unwrap_or(""));
-            format!("__oxide_seg \"{text}\" \"{fg}\" \"{bg}\" {bold}\n")
+            format!("__omnipty_seg \"{text}\" \"{fg}\" \"{bg}\" {bold}\n")
         }
         SegmentKind::Env => match &opts.var {
             Some(var) if var.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') => format!(
-                "[[ -n \"${{{var}}}\" ]] && __oxide_seg \"${{{var}}}\" \"{fg}\" \"{bg}\" {bold} # segment {ix}\n"
+                "[[ -n \"${{{var}}}\" ]] && __omnipty_seg \"${{{var}}}\" \"{fg}\" \"{bg}\" {bold} # segment {ix}\n"
             ),
             _ => String::new(),
         },
@@ -165,70 +165,70 @@ pub fn generate_init(prompt: &PromptConfig, style_prompt: bool, emit_cmdline: bo
     };
     let widget_start = widget_command_start(emit_cmdline);
     format!(
-        r#"# Generated by Oxide — do not edit; regenerated from config.toml on launch.
+        r#"# Generated by OmniPTY — do not edit; regenerated from config.toml on launch.
 [[ -o interactive ]] || return
 zmodload zsh/datetime 2>/dev/null
 autoload -Uz add-zsh-hook
 
-typeset -g __oxide_style_prompt={style_prompt_flag}
-typeset -g __oxide_exit=0
-__oxide_git_ok=0
+typeset -g __omnipty_style_prompt={style_prompt_flag}
+typeset -g __omnipty_exit=0
+__omnipty_git_ok=0
 if command -v git >/dev/null 2>&1; then
-  __oxide_git_ok=1
+  __omnipty_git_ok=1
   # Apple's /usr/bin/git is an installer shim until the CLT exist; running it
   # would pop a GUI dialog from inside the prompt. Check without invoking it.
   if [ "$(uname)" = Darwin ] && [ "$(command -v git)" = /usr/bin/git ] \
     && ! /usr/bin/xcode-select -p >/dev/null 2>&1; then
-    __oxide_git_ok=0
+    __omnipty_git_ok=0
   fi
 fi
 
-typeset -g __oxide_dur=""
-typeset -g __oxide_t0=""
+typeset -g __omnipty_dur=""
+typeset -g __omnipty_t0=""
 
-__oxide_preexec() {{
-  __oxide_t0=$EPOCHREALTIME
+__omnipty_preexec() {{
+  __omnipty_t0=$EPOCHREALTIME
   {command_start}
 }}
 
-__oxide_seg() {{
-  __oxide_texts+=("$1"); __oxide_fgs+=("$2"); __oxide_bgs+=("$3"); __oxide_bolds+=("$4")
+__omnipty_seg() {{
+  __omnipty_texts+=("$1"); __omnipty_fgs+=("$2"); __omnipty_bgs+=("$3"); __omnipty_bolds+=("$4")
 }}
 
-__oxide_precmd() {{
+__omnipty_precmd() {{
   # Capture $? before anything else or we report our own exit status.
-  __oxide_exit=$?
-  if [[ -n "$__oxide_t0" ]]; then
-    __oxide_dur=$(( EPOCHREALTIME - __oxide_t0 ))
+  __omnipty_exit=$?
+  if [[ -n "$__omnipty_t0" ]]; then
+    __omnipty_dur=$(( EPOCHREALTIME - __omnipty_t0 ))
   else
-    __oxide_dur=""
+    __omnipty_dur=""
   fi
-  __oxide_t0=""
-  printf '\033]133;D;%s\033\\' "$__oxide_exit"
+  __omnipty_t0=""
+  printf '\033]133;D;%s\033\\' "$__omnipty_exit"
   printf '\033]7;file://%s%s\033\\' "$HOST" "$PWD"
 
-  local -a __oxide_texts __oxide_fgs __oxide_bgs __oxide_bolds
+  local -a __omnipty_texts __omnipty_fgs __omnipty_bgs __omnipty_bolds
 {segments}
   local sep="{sep}"
   local endc="{end}"
   local p=$'%{{\033]133;A\033\\%}}'
-  local n=${{#__oxide_texts}} i
+  local n=${{#__omnipty_texts}} i
   for (( i=1; i<=n; i++ )); do
     local b=""
-    [[ "${{__oxide_bolds[i]}}" == 1 ]] && b=$'\033[1m'
+    [[ "${{__omnipty_bolds[i]}}" == 1 ]] && b=$'\033[1m'
     # %{{...%}} zero-width markers keep zsh's printable-width math honest.
-    p+="%{{"$'\033[38;2;'"${{__oxide_fgs[i]}}m"$'\033[48;2;'"${{__oxide_bgs[i]}}m${{b}}%}} ${{__oxide_texts[i]//\%/%%}} "
+    p+="%{{"$'\033[38;2;'"${{__omnipty_fgs[i]}}m"$'\033[48;2;'"${{__omnipty_bgs[i]}}m${{b}}%}} ${{__omnipty_texts[i]//\%/%%}} "
     if (( i < n )); then
-      p+="%{{"$'\033[0m\033[38;2;'"${{__oxide_bgs[i]}}m"$'\033[48;2;'"${{__oxide_bgs[i+1]}}m%}}${{sep}}"
+      p+="%{{"$'\033[0m\033[38;2;'"${{__omnipty_bgs[i]}}m"$'\033[48;2;'"${{__omnipty_bgs[i+1]}}m%}}${{sep}}"
     else
-      p+="%{{"$'\033[0m\033[38;2;'"${{__oxide_bgs[i]}}m%}}${{endc}}"
+      p+="%{{"$'\033[0m\033[38;2;'"${{__omnipty_bgs[i]}}m%}}${{endc}}"
     fi
   done
   p+="%{{"$'\033[0m'"%}}"
   {newline}
   p+=" "
   p+=$'%{{\033]133;B\033\\%}}'
-  if (( n > 0 && __oxide_style_prompt )); then
+  if (( n > 0 && __omnipty_style_prompt )); then
     PROMPT="$p"
   else
     # Your own prompt (starship, p10k) is kept, so the A marker isn't in
@@ -238,14 +238,14 @@ __oxide_precmd() {{
   fi
 }}
 
-add-zsh-hook precmd __oxide_precmd
-add-zsh-hook preexec __oxide_preexec
+add-zsh-hook precmd __omnipty_precmd
+add-zsh-hook preexec __omnipty_preexec
 
 # Silent cd: the app writes a target path and sends the trigger sequence.
 # Running it as a zle widget (rather than typing a command) means nothing is
 # echoed and reset-prompt redraws the existing prompt with the new directory.
-__oxide_cd_widget() {{
-  local f="${{HOME}}/.cache/oxide/cd/${{OXIDE_SESSION:-none}}" d
+__omnipty_cd_widget() {{
+  local f="${{HOME}}/.cache/omnipty/cd/${{OMNIPTY_SESSION:-none}}" d
   if [[ -r $f ]]; then
     d="$(<$f)"
     command rm -f -- "$f"
@@ -253,8 +253,8 @@ __oxide_cd_widget() {{
   fi
   zle reset-prompt
 }}
-zle -N __oxide_cd_widget
-bindkey '\e[9001~' __oxide_cd_widget
+zle -N __omnipty_cd_widget
+bindkey '\e[9001~' __omnipty_cd_widget
 
 # Silent run: same shape as the cd widget, for commands the app wants the
 # shell to execute — opening a file in $EDITOR, which only the shell knows.
@@ -262,8 +262,8 @@ bindkey '\e[9001~' __oxide_cd_widget
 # the terminal, exactly as if they had typed it) but the command line itself
 # is never echoed and never enters history. The target file is consumed so a
 # stray trigger can't replay it.
-__oxide_run_widget() {{
-  local f="${{HOME}}/.cache/oxide/run/${{OXIDE_SESSION:-none}}" c="" rc=0
+__omnipty_run_widget() {{
+  local f="${{HOME}}/.cache/omnipty/run/${{OMNIPTY_SESSION:-none}}" c="" rc=0
   if [[ -r $f ]]; then
     c="$(<$f)"
     command rm -f -- "$f"
@@ -286,8 +286,8 @@ __oxide_run_widget() {{
   fi
   zle reset-prompt
 }}
-zle -N __oxide_run_widget
-bindkey '\e[9002~' __oxide_run_widget
+zle -N __omnipty_run_widget
+bindkey '\e[9002~' __omnipty_run_widget
 "#
     )
 }
@@ -306,14 +306,14 @@ fn bash_segment_snippet(seg: &SegmentConfig) -> String {
                 CwdStyle::Basename => "local __cwd=\"${PWD##*/}\"\n".to_string(),
                 CwdStyle::TruncateToRepo => concat!(
                     "local __cwd=\"${PWD/#$HOME/\\~}\"\n",
-                    "local __root=\"\"\n(( __oxide_git_ok )) && __root=$(command git rev-parse --show-toplevel 2>/dev/null)\n",
+                    "local __root=\"\"\n(( __omnipty_git_ok )) && __root=$(command git rev-parse --show-toplevel 2>/dev/null)\n",
                     "if [[ -n \"$__root\" && \"$PWD\" == \"$__root\"* ]]; then __cwd=\"${__root##*/}${PWD#$__root}\"; fi\n",
                 )
                 .to_string(),
             };
             format!(
                 "{compute}(( ${{#__cwd}} > {max_len} )) && __cwd=\"…${{__cwd: -{max_len}}}\"\n\
-                 __oxide_seg \"$__cwd\" \"{fg}\" \"{bg}\" {bold}\n"
+                 __omnipty_seg \"$__cwd\" \"{fg}\" \"{bg}\" {bold}\n"
             )
         }
         SegmentKind::Git => {
@@ -322,7 +322,7 @@ fn bash_segment_snippet(seg: &SegmentConfig) -> String {
             let ahead_behind = opts.ahead_behind.unwrap_or(true);
             let mut s = String::new();
             s.push_str(
-                "local __br=\"\"\n(( __oxide_git_ok )) && __br=$(command git symbolic-ref --short HEAD 2>/dev/null || command git rev-parse --short HEAD 2>/dev/null)\n",
+                "local __br=\"\"\n(( __omnipty_git_ok )) && __br=$(command git symbolic-ref --short HEAD 2>/dev/null || command git rev-parse --short HEAD 2>/dev/null)\n",
             );
             s.push_str("if [[ -n \"$__br\" ]]; then\n");
             s.push_str(&format!("  local __gbg=\"{bg}\"\n"));
@@ -344,7 +344,7 @@ fn bash_segment_snippet(seg: &SegmentConfig) -> String {
                 s.push_str("  fi\n");
             }
             s.push_str(&format!(
-                "  __oxide_seg \"$__gtext\" \"{fg}\" \"$__gbg\" {bold}\n"
+                "  __omnipty_seg \"$__gtext\" \"{fg}\" \"$__gbg\" {bold}\n"
             ));
             s.push_str("fi\n");
             s
@@ -353,36 +353,36 @@ fn bash_segment_snippet(seg: &SegmentConfig) -> String {
             let hide = opts.hide_on_success.unwrap_or(true);
             if hide {
                 format!(
-                    "if (( __oxide_exit != 0 )); then __oxide_seg \"✗ $__oxide_exit\" \"{fg}\" \"{bg}\" {bold}; fi\n"
+                    "if (( __omnipty_exit != 0 )); then __omnipty_seg \"✗ $__omnipty_exit\" \"{fg}\" \"{bg}\" {bold}; fi\n"
                 )
             } else {
-                format!("__oxide_seg \"$__oxide_exit\" \"{fg}\" \"{bg}\" {bold}\n")
+                format!("__omnipty_seg \"$__omnipty_exit\" \"{fg}\" \"{bg}\" {bold}\n")
             }
         }
         SegmentKind::Time => {
             let format = zsh_dq(&opts.format.clone().unwrap_or_else(|| "%H:%M".into()));
-            format!("__oxide_seg \"$(command date +\"{format}\")\" \"{fg}\" \"{bg}\" {bold}\n")
+            format!("__omnipty_seg \"$(command date +\"{format}\")\" \"{fg}\" \"{bg}\" {bold}\n")
         }
-        SegmentKind::User => format!("__oxide_seg \"$USER\" \"{fg}\" \"{bg}\" {bold}\n"),
+        SegmentKind::User => format!("__omnipty_seg \"$USER\" \"{fg}\" \"{bg}\" {bold}\n"),
         SegmentKind::Host => {
-            format!("__oxide_seg \"${{HOSTNAME%%.*}}\" \"{fg}\" \"{bg}\" {bold}\n")
+            format!("__omnipty_seg \"${{HOSTNAME%%.*}}\" \"{fg}\" \"{bg}\" {bold}\n")
         }
         SegmentKind::Duration => {
             format!(
-                "if [[ -n \"$__oxide_dur\" ]] && (( __oxide_dur >= 2 )); then\n\
-                 \x20 local __ds=\"${{__oxide_dur}}s\"\n\
-                 \x20 (( __oxide_dur >= 60 )) && __ds=\"$(( __oxide_dur / 60 ))m$(( __oxide_dur % 60 ))s\"\n\
-                 \x20 __oxide_seg \"$__ds\" \"{fg}\" \"{bg}\" {bold}\n\
+                "if [[ -n \"$__omnipty_dur\" ]] && (( __omnipty_dur >= 2 )); then\n\
+                 \x20 local __ds=\"${{__omnipty_dur}}s\"\n\
+                 \x20 (( __omnipty_dur >= 60 )) && __ds=\"$(( __omnipty_dur / 60 ))m$(( __omnipty_dur % 60 ))s\"\n\
+                 \x20 __omnipty_seg \"$__ds\" \"{fg}\" \"{bg}\" {bold}\n\
                  fi\n"
             )
         }
         SegmentKind::Text => {
             let text = zsh_dq(opts.text.as_deref().unwrap_or(""));
-            format!("__oxide_seg \"{text}\" \"{fg}\" \"{bg}\" {bold}\n")
+            format!("__omnipty_seg \"{text}\" \"{fg}\" \"{bg}\" {bold}\n")
         }
         SegmentKind::Env => match &opts.var {
             Some(var) if var.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') => format!(
-                "[[ -n \"${{{var}}}\" ]] && __oxide_seg \"${{{var}}}\" \"{fg}\" \"{bg}\" {bold}\n"
+                "[[ -n \"${{{var}}}\" ]] && __omnipty_seg \"${{{var}}}\" \"{fg}\" \"{bg}\" {bold}\n"
             ),
             _ => String::new(),
         },
@@ -427,7 +427,7 @@ pub fn generate_init_bash(prompt: &PromptConfig, style_prompt: bool, emit_cmdlin
     };
     let widget_start = widget_command_start(emit_cmdline);
     format!(
-        r#"# Generated by Oxide — do not edit; regenerated from config.toml on launch.
+        r#"# Generated by OmniPTY — do not edit; regenerated from config.toml on launch.
 # Login-shell emulation: --init-file replaced -l, so run the profile chain.
 if [[ -f /etc/profile ]]; then source /etc/profile; fi
 if [[ -f "$HOME/.bash_profile" ]]; then source "$HOME/.bash_profile"
@@ -440,62 +440,62 @@ fi
 
 # The terminal settings bash runs commands with, taken before readline first
 # switches the terminal to its own (no echo, raw input). The silent-run
-# handler puts these back for the command it runs; see __oxide_run_widget.
-__oxide_tty=$(stty -g 2>/dev/null)
+# handler puts these back for the command it runs; see __omnipty_run_widget.
+__omnipty_tty=$(stty -g 2>/dev/null)
 
-__oxide_style_prompt={style_prompt_flag}
-__oxide_cd_erase=0
-__oxide_git_ok=0
+__omnipty_style_prompt={style_prompt_flag}
+__omnipty_cd_erase=0
+__omnipty_git_ok=0
 if command -v git >/dev/null 2>&1; then
-  __oxide_git_ok=1
+  __omnipty_git_ok=1
   # Apple's /usr/bin/git is an installer shim until the CLT exist; running it
   # would pop a GUI dialog from inside the prompt. Check without invoking it.
   if [ "$(uname)" = Darwin ] && [ "$(command -v git)" = /usr/bin/git ] \
     && ! /usr/bin/xcode-select -p >/dev/null 2>&1; then
-    __oxide_git_ok=0
+    __omnipty_git_ok=0
   fi
 fi
 
 # 0 until the first prompt: the rest of this file runs under the DEBUG trap
 # too, and none of it is a command the user typed.
-__oxide_at_prompt=0
-__oxide_t0=""
-__oxide_dur=""
-__oxide_exit=0
+__omnipty_at_prompt=0
+__omnipty_t0=""
+__omnipty_dur=""
+__omnipty_exit=0
 # bash 5.1+ lets PROMPT_COMMAND be an array, and Arch's bashrc, starship,
 # and zoxide all append to it. Keep every element (a plain string is a
 # one-element array here), then drop the variable before ours replaces it:
 # an element left behind would run at top level, where the DEBUG trap
 # would log it as a command that never finishes. Skip our own hook, so
 # sourcing this file twice cannot make it call itself.
-__oxide_original_prompt_commands=()
-for __oxide_pc in "${{PROMPT_COMMAND[@]}}"; do
-  [[ "$__oxide_pc" == *__oxide_prompt_command* ]] && continue
-  __oxide_original_prompt_commands+=("$__oxide_pc")
+__omnipty_original_prompt_commands=()
+for __omnipty_pc in "${{PROMPT_COMMAND[@]}}"; do
+  [[ "$__omnipty_pc" == *__omnipty_prompt_command* ]] && continue
+  __omnipty_original_prompt_commands+=("$__omnipty_pc")
 done
-unset __oxide_pc PROMPT_COMMAND
+unset __omnipty_pc PROMPT_COMMAND
 
 # Note: this installs a DEBUG trap (the bash-preexec pattern) for OSC 133;C
 # and command timing; a pre-existing DEBUG trap would be replaced.
-__oxide_debug_trap() {{
+__omnipty_debug_trap() {{
   [[ -n "$COMP_LINE" ]] && return
   # Our own prompt hook and the cd/run handlers emit their own markers.
-  [[ "$BASH_COMMAND" == __oxide_* ]] && return
-  if (( __oxide_at_prompt )); then
-    __oxide_at_prompt=0
-    __oxide_t0=$SECONDS
+  [[ "$BASH_COMMAND" == __omnipty_* ]] && return
+  if (( __omnipty_at_prompt )); then
+    __omnipty_at_prompt=0
+    __omnipty_t0=$SECONDS
     {command_start}
   fi
 }}
-trap '__oxide_debug_trap' DEBUG
+trap '__omnipty_debug_trap' DEBUG
 
-__oxide_seg() {{
-  __oxide_texts+=("$1"); __oxide_fgs+=("$2"); __oxide_bgs+=("$3"); __oxide_bolds+=("$4")
+__omnipty_seg() {{
+  __omnipty_texts+=("$1"); __omnipty_fgs+=("$2"); __omnipty_bgs+=("$3"); __omnipty_bolds+=("$4")
 }}
 
-__oxide_prompt_command() {{
+__omnipty_prompt_command() {{
   # Capture $? before anything else or we report our own exit status.
-  local __oxide_status=$?
+  local __omnipty_status=$?
   # Re-sourcing ~/.bashrc re-runs `starship init bash`, which finds this
   # hook in PROMPT_COMMAND, stashes it in STARSHIP_PROMPT_COMMAND and evals
   # it from starship_precmd — while we eval starship_precmd from the hooks
@@ -503,71 +503,71 @@ __oxide_prompt_command() {{
   # its stack and segfaults. FUNCNAME lists every function still running;
   # if we are already on it, this is the inner call: do nothing and let the
   # outer one finish the prompt.
-  local __oxide_fn
-  for __oxide_fn in "${{FUNCNAME[@]:1}}"; do
-    [[ "$__oxide_fn" == __oxide_prompt_command ]] && return 0
+  local __omnipty_fn
+  for __omnipty_fn in "${{FUNCNAME[@]:1}}"; do
+    [[ "$__omnipty_fn" == __omnipty_prompt_command ]] && return 0
   done
-  __oxide_exit=$__oxide_status
-  if [[ -n "$__oxide_t0" ]]; then __oxide_dur=$(( SECONDS - __oxide_t0 )); else __oxide_dur=""; fi
-  __oxide_t0=""
-  __oxide_at_prompt=1
+  __omnipty_exit=$__omnipty_status
+  if [[ -n "$__omnipty_t0" ]]; then __omnipty_dur=$(( SECONDS - __omnipty_t0 )); else __omnipty_dur=""; fi
+  __omnipty_t0=""
+  __omnipty_at_prompt=1
   # Triggered by a silent cd: walk back over the prompt we just left behind
   # and clear it, so this prompt replaces it rather than stacking below.
-  if (( __oxide_cd_erase > 0 )); then
-    printf '\033[%dA\033[J' "$__oxide_cd_erase"
-    __oxide_cd_erase=0
+  if (( __omnipty_cd_erase > 0 )); then
+    printf '\033[%dA\033[J' "$__omnipty_cd_erase"
+    __omnipty_cd_erase=0
   fi
-  printf '\033]133;D;%s\033\\' "$__oxide_exit"
+  printf '\033]133;D;%s\033\\' "$__omnipty_exit"
   printf '\033]7;file://%s%s\033\\' "${{HOSTNAME:-localhost}}" "$PWD"
-  local __oxide_pc
-  for __oxide_pc in "${{__oxide_original_prompt_commands[@]}}"; do
-    [[ -n "$__oxide_pc" ]] || continue
+  local __omnipty_pc
+  for __omnipty_pc in "${{__omnipty_original_prompt_commands[@]}}"; do
+    [[ -n "$__omnipty_pc" ]] || continue
     # A hook that is itself running us (starship_precmd after a bashrc
     # re-source, see above) is already on the stack: running it again here
     # would draw its prompt twice. Skip it; it finishes after we return.
-    [[ " ${{FUNCNAME[*]}} " == *" ${{__oxide_pc%%[[:space:];]*}} "* ]] && continue
+    [[ " ${{FUNCNAME[*]}} " == *" ${{__omnipty_pc%%[[:space:];]*}} "* ]] && continue
     # Each hook sees the real exit status, as it would without us.
-    ( exit "$__oxide_exit" )
-    eval "$__oxide_pc"
+    ( exit "$__omnipty_exit" )
+    eval "$__omnipty_pc"
   done
 
-  local __oxide_texts=() __oxide_fgs=() __oxide_bgs=() __oxide_bolds=()
+  local __omnipty_texts=() __omnipty_fgs=() __omnipty_bgs=() __omnipty_bolds=()
 {segments}
   local sep="{sep}"
   local endc="{end}"
   local p=$'\001\033]133;A\033\\\002'
-  local n=${{#__oxide_texts[@]}} i
+  local n=${{#__omnipty_texts[@]}} i
   for (( i=0; i<n; i++ )); do
     local b=""
-    [[ "${{__oxide_bolds[i]}}" == 1 ]] && b=$'\033[1m'
-    local t="${{__oxide_texts[i]}}"
+    [[ "${{__omnipty_bolds[i]}}" == 1 ]] && b=$'\033[1m'
+    local t="${{__omnipty_texts[i]}}"
     t="${{t//\\/\\\\}}"; t="${{t//\$/\\\$}}"; t="${{t//\`/\\\`}}"
-    p+=$'\001\033[38;2;'"${{__oxide_fgs[i]}}m"$'\033[48;2;'"${{__oxide_bgs[i]}}m$b"$'\002'" $t "
+    p+=$'\001\033[38;2;'"${{__omnipty_fgs[i]}}m"$'\033[48;2;'"${{__omnipty_bgs[i]}}m$b"$'\002'" $t "
     if (( i+1 < n )); then
-      p+=$'\001\033[0m\033[38;2;'"${{__oxide_bgs[i]}}m"$'\033[48;2;'"${{__oxide_bgs[i+1]}}m"$'\002'"$sep"
+      p+=$'\001\033[0m\033[38;2;'"${{__omnipty_bgs[i]}}m"$'\033[48;2;'"${{__omnipty_bgs[i+1]}}m"$'\002'"$sep"
     else
-      p+=$'\001\033[0m\033[38;2;'"${{__oxide_bgs[i]}}m"$'\002'"$endc"
+      p+=$'\001\033[0m\033[38;2;'"${{__omnipty_bgs[i]}}m"$'\002'"$endc"
     fi
   done
   p+=$'\001\033[0m\002'
   {newline}
   p+=" "
   p+=$'\001\033]133;B\033\\\002'
-  if (( n > 0 && __oxide_style_prompt )); then
+  if (( n > 0 && __omnipty_style_prompt )); then
     PS1="$p"
   else
     # Same as zsh: with your own prompt kept, the A marker goes out here.
     printf '\033]133;A\033\\'
   fi
 }}
-PROMPT_COMMAND="__oxide_prompt_command"
+PROMPT_COMMAND="__omnipty_prompt_command"
 
 # Silent cd. bash has no `zle reset-prompt`, so the app follows the trigger
 # with an empty line to get a freshly expanded prompt. Record how tall the
-# outgoing prompt is; the next __oxide_prompt_command erases it so the new
+# outgoing prompt is; the next __omnipty_prompt_command erases it so the new
 # prompt lands in place instead of stacking up.
-__oxide_cd_widget() {{
-  local f="${{HOME}}/.cache/oxide/cd/${{OXIDE_SESSION:-none}}" d
+__omnipty_cd_widget() {{
+  local f="${{HOME}}/.cache/omnipty/cd/${{OMNIPTY_SESSION:-none}}" d
   if [[ -r $f ]]; then
     d="$(<$f)"
     command rm -f -- "$f"
@@ -578,9 +578,9 @@ __oxide_cd_widget() {{
     # ${{PS1@P}} needs bash 4.4+; older bash assumes a one-line prompt.
     local __p="${{PS1@P}}" __nl
     __nl="${{__p//[!$'\n']/}}"
-    __oxide_cd_erase=$(( ${{#__nl}} + 1 ))
+    __omnipty_cd_erase=$(( ${{#__nl}} + 1 ))
   else
-    __oxide_cd_erase=1
+    __omnipty_cd_erase=1
   fi
 }}
 # Silent run: the app writes a command and sends the trigger. readline
@@ -588,8 +588,8 @@ __oxide_cd_widget() {{
 # leaves the terminal the way it found it — and the command line is never
 # echoed or added to history. The target file is consumed so a stray trigger
 # cannot replay it.
-__oxide_run_widget() {{
-  local f="${{HOME}}/.cache/oxide/run/${{OXIDE_SESSION:-none}}" c="" rc=0
+__omnipty_run_widget() {{
+  local f="${{HOME}}/.cache/omnipty/run/${{OMNIPTY_SESSION:-none}}" c="" rc=0
   if [[ -r $f ]]; then
     c="$(<$f)"
     command rm -f -- "$f"
@@ -604,34 +604,34 @@ __oxide_run_widget() {{
     # without echo, and `ssh -t` copies that onto the remote terminal,
     # whose shell then never shows what you type. readline's settings go
     # back afterwards so the prompt keeps working.
-    local __oxide_rl_tty=""
-    if [[ -n $__oxide_tty ]]; then
-      __oxide_rl_tty=$(stty -g 2>/dev/null </dev/tty)
-      stty "$__oxide_tty" 2>/dev/null </dev/tty
+    local __omnipty_rl_tty=""
+    if [[ -n $__omnipty_tty ]]; then
+      __omnipty_rl_tty=$(stty -g 2>/dev/null </dev/tty)
+      stty "$__omnipty_tty" 2>/dev/null </dev/tty
     fi
     # </dev/tty for the same reason as zsh: a bind -x handler does not
     # inherit the terminal on stdin, and editors refuse to run without it.
     eval "$c" </dev/tty
     rc=$?
-    [[ -n $__oxide_rl_tty ]] && stty "$__oxide_rl_tty" 2>/dev/null </dev/tty
+    [[ -n $__omnipty_rl_tty ]] && stty "$__omnipty_rl_tty" 2>/dev/null </dev/tty
     printf '\033]133;D;%s\033\\' "$rc"
   fi
   # readline redraws the prompt without running PROMPT_COMMAND; the next
   # typed line must still get its C marker.
-  __oxide_at_prompt=1
+  __omnipty_at_prompt=1
   return 0
 }}
 if (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 3) )); then
-  bind -x '"\e[9001~": __oxide_cd_widget' 2>/dev/null
-  bind -x '"\e[9002~": __oxide_run_widget' 2>/dev/null
+  bind -x '"\e[9001~": __omnipty_cd_widget' 2>/dev/null
+  bind -x '"\e[9002~": __omnipty_run_widget' 2>/dev/null
 else
   # bash < 4.3 cannot `bind -x` a multi-character sequence — invoking it dies
   # with "bash_execute_unix_command: cannot find keymap for command" (Apple's
   # /bin/bash 3.2 included). Trampoline through a two-key binding instead,
   # the same trick fzf uses.
-  bind -x '"\C-x\C-a": __oxide_cd_widget' 2>/dev/null
+  bind -x '"\C-x\C-a": __omnipty_cd_widget' 2>/dev/null
   bind '"\e[9001~": "\C-x\C-a"' 2>/dev/null
-  bind -x '"\C-x\C-b": __oxide_run_widget' 2>/dev/null
+  bind -x '"\C-x\C-b": __omnipty_run_widget' 2>/dev/null
   bind '"\e[9002~": "\C-x\C-b"' 2>/dev/null
 fi
 "#
@@ -665,16 +665,16 @@ mod tests {
         assert!(script.contains("133;C;cmdline="));
         assert!(!generate_init(&PromptConfig::default(), true, false).contains("cmdline="));
         assert!(script.contains("133;D"));
-        assert!(script.contains("add-zsh-hook precmd __oxide_precmd"));
+        assert!(script.contains("add-zsh-hook precmd __omnipty_precmd"));
         // Default config has cwd + git + exit segments.
         assert!(script.contains("__cwd"));
         assert!(script.contains("__br"));
-        assert!(script.contains("__oxide_exit != 0"));
+        assert!(script.contains("__omnipty_exit != 0"));
     }
 
     #[test]
     fn generated_scripts_pass_shell_syntax_check() {
-        let dir = std::env::temp_dir().join("oxide-prompt-syntax-test");
+        let dir = std::env::temp_dir().join("omnipty-prompt-syntax-test");
         std::fs::create_dir_all(&dir).unwrap();
         let zsh_path = dir.join("init.zsh");
         let bash_path = dir.join("init.bash");
@@ -751,7 +751,7 @@ mod tests {
             };
             // Default segments end with the powerline arrow; cwd segment shows
             // the repo basename.
-            if text.contains('\u{e0b0}') && text.contains("oxide") {
+            if text.contains('\u{e0b0}') && text.contains("omnipty") {
                 break;
             }
             if Instant::now() > deadline {
@@ -841,7 +841,7 @@ mod cd_tests {
         if !std::path::Path::new(bash).exists() {
             return;
         }
-        let home = std::env::temp_dir().join(format!("oxide-pc-array-{}", std::process::id()));
+        let home = std::env::temp_dir().join(format!("omnipty-pc-array-{}", std::process::id()));
         std::fs::create_dir_all(&home).unwrap();
         std::fs::write(
             home.join(".bashrc"),
@@ -900,7 +900,7 @@ mod cd_tests {
         if !std::path::Path::new(bash).exists() {
             return;
         }
-        let home = std::env::temp_dir().join(format!("oxide-pc-resource-{}", std::process::id()));
+        let home = std::env::temp_dir().join(format!("omnipty-pc-resource-{}", std::process::id()));
         std::fs::create_dir_all(&home).unwrap();
         std::fs::write(
             home.join(".bashrc"),
@@ -1033,8 +1033,13 @@ mod cd_tests {
         );
         // The prompt we left behind must be erased, not stacked above the new
         // one — only the current directory should be on screen.
+        let start_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap();
         assert!(
-            !after.contains("oxide"),
+            !after.contains(start_dir),
             "stale prompt left on screen after cd:\n{after}"
         );
     }
@@ -1063,7 +1068,7 @@ mod run_tests {
     }
 
     /// "Open in $EDITOR" must run the command without typing it at the prompt.
-    /// Covers every shell Oxide injects into, including Apple's bash 3.2 with
+    /// Covers every shell OmniPTY injects into, including Apple's bash 3.2 with
     /// its trampolined `bind -x`.
     #[test]
     fn silent_run_in_supported_shells() {
@@ -1082,7 +1087,7 @@ mod run_tests {
             .clone()
             .unwrap_or_else(|| config.shell.args.clone());
 
-        let dir = std::env::temp_dir().join("oxide-run-widget-test");
+        let dir = std::env::temp_dir().join("omnipty-run-widget-test");
         std::fs::create_dir_all(&dir).unwrap();
 
         let size = TermSize {
@@ -1110,7 +1115,7 @@ mod run_tests {
 
         // The marker is in the output, not in the command name, so an echoed
         // command line is distinguishable from the command's own output.
-        let after = trigger(&session, "printf 'OXIDE_RAN_OK\\n'", "OXIDE_RAN_OK", shell);
+        let after = trigger(&session, "printf 'OMNIPTY_RAN_OK\\n'", "OMNIPTY_RAN_OK", shell);
         assert!(
             !after.contains("printf"),
             "{shell}: the command line was echoed:\n{after}"
@@ -1123,7 +1128,7 @@ mod run_tests {
         // command log sees it and startup commands learn their exit status.
         let markers = drain_markers(&mut rx);
         assert!(
-            markers.iter().any(|m| matches!(&m.kind, MarkerKind::CommandStart { cmdline: Some(c) } if c.contains("OXIDE_RAN_OK"))),
+            markers.iter().any(|m| matches!(&m.kind, MarkerKind::CommandStart { cmdline: Some(c) } if c.contains("OMNIPTY_RAN_OK"))),
             "{shell}: no C marker with the command line: {markers:?}"
         );
         assert!(
@@ -1136,8 +1141,8 @@ mod run_tests {
         // A failing command reports its status too.
         trigger(
             &session,
-            "printf 'OXIDE_FAIL\\n'; false",
-            "OXIDE_FAIL",
+            "printf 'OMNIPTY_FAIL\\n'; false",
+            "OMNIPTY_FAIL",
             shell,
         );
         let markers = drain_markers(&mut rx);
@@ -1153,12 +1158,12 @@ mod run_tests {
         // without it either warns or refuses to run.
         let after = trigger(
             &session,
-            "if [ -t 0 ]; then printf 'OXIDE_TTY_OK\\n'; else printf 'OXIDE_TTY_MISSING\\n'; fi",
-            "OXIDE_TTY",
+            "if [ -t 0 ]; then printf 'OMNIPTY_TTY_OK\\n'; else printf 'OMNIPTY_TTY_MISSING\\n'; fi",
+            "OMNIPTY_TTY",
             shell,
         );
         assert!(
-            after.contains("OXIDE_TTY_OK"),
+            after.contains("OMNIPTY_TTY_OK"),
             "{shell}: the command ran without a terminal on stdin:\n{after}"
         );
 
@@ -1171,10 +1176,10 @@ mod run_tests {
         trigger(
             &session,
             &format!(
-                "stty -a > '{}'; printf 'OXIDE_MODES_READ\\n'",
+                "stty -a > '{}'; printf 'OMNIPTY_MODES_READ\\n'",
                 modes_file.display()
             ),
-            "OXIDE_MODES_READ",
+            "OMNIPTY_MODES_READ",
             shell,
         );
         let modes = std::fs::read_to_string(&modes_file).expect("stty -a output");
@@ -1187,14 +1192,14 @@ mod run_tests {
         }
         // The line editor gets its settings back afterwards: a typed
         // command still echoes exactly once, and runs.
-        session.write_input(b"echo OXIDE_TYPED_$((40+2))\r".to_vec());
+        session.write_input(b"echo OMNIPTY_TYPED_$((40+2))\r".to_vec());
         let after = wait_for(
             &session,
-            "OXIDE_TYPED_42",
+            "OMNIPTY_TYPED_42",
             &format!("{shell}: the prompt stopped taking input after a silent run"),
         );
         assert_eq!(
-            after.matches("echo OXIDE_TYPED_").count(),
+            after.matches("echo OMNIPTY_TYPED_").count(),
             1,
             "{shell}: typed input wasn't echoed exactly once:\n{after}"
         );
@@ -1305,12 +1310,12 @@ mod run_tests {
         assert!(write_channel(
             Channel::Run,
             session.id(),
-            b"printf 'OXIDE_FIRST_OK\\n'"
+            b"printf 'OMNIPTY_FIRST_OK\\n'"
         ));
         session.write_input(b"\x1b[9002~".to_vec());
         let grid = wait_for(
             &session,
-            "OXIDE_FIRST_OK",
+            "OMNIPTY_FIRST_OK",
             &format!("{shell}: command sent on the first prompt never ran"),
         );
         assert!(
@@ -1375,23 +1380,23 @@ mod run_tests {
         assert!(write_channel(
             Channel::Run,
             a.id(),
-            b"printf 'OXIDE_A_RAN\\n'"
+            b"printf 'OMNIPTY_A_RAN\\n'"
         ));
         assert!(write_channel(
             Channel::Run,
             b.id(),
-            b"printf 'OXIDE_B_RAN\\n'"
+            b"printf 'OMNIPTY_B_RAN\\n'"
         ));
         a.write_input(b"\x1b[9002~".to_vec());
         b.write_input(b"\x1b[9002~".to_vec());
-        let grid_a = wait_for(&a, "OXIDE_A_RAN", "session A's command never ran");
-        let grid_b = wait_for(&b, "OXIDE_B_RAN", "session B's command never ran");
+        let grid_a = wait_for(&a, "OMNIPTY_A_RAN", "session A's command never ran");
+        let grid_b = wait_for(&b, "OMNIPTY_B_RAN", "session B's command never ran");
         assert!(
-            !grid_a.contains("OXIDE_B_RAN"),
+            !grid_a.contains("OMNIPTY_B_RAN"),
             "A ran B's command:\n{grid_a}"
         );
         assert!(
-            !grid_b.contains("OXIDE_A_RAN"),
+            !grid_b.contains("OMNIPTY_A_RAN"),
             "B ran A's command:\n{grid_b}"
         );
         assert!(!channel_path(Channel::Run, a.id()).unwrap().exists());

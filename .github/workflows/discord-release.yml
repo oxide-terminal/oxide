@@ -25,6 +25,6 @@ jobs:
             --arg url "$URL" \
             --arg desc "$(printf '%s' "$BODY" | head -c 3500)
 
-          **Update:** Oxide → Check for Updates… · \`brew upgrade --cask oxide-terminal\`" \
+          **Update:** OmniPTY → Check for Updates… · \`brew upgrade --cask omnipty\`" \
             '{embeds: [{title: $title, url: $url, description: $desc, color: 16753920}]}' \
           | curl -sS --fail-with-body -H "Content-Type: application/json" -d @- "$WEBHOOK"

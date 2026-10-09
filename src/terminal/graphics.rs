@@ -240,7 +240,7 @@ impl GraphicsState {
                 format!("\x1b[6;{};{}t", height.round() as u32, width.round() as u32)
             }
             Reply::TextAreaSize => format!("\x1b[4;{pane_height};{pane_width}t"),
-            Reply::Version => format!("\x1bP>|Oxide {}\x1b\\", env!("CARGO_PKG_VERSION")),
+            Reply::Version => format!("\x1bP>|OmniPTY {}\x1b\\", env!("CARGO_PKG_VERSION")),
         };
         out.extend_from_slice(text.as_bytes());
     }
@@ -1742,7 +1742,7 @@ mod tests {
         assert_eq!(h.run("\x1b[14t").1, "\x1b[4;816;1344t");
         assert_eq!(
             h.run("\x1b[>q").1,
-            format!("\x1bP>|Oxide {}\x1b\\", env!("CARGO_PKG_VERSION"))
+            format!("\x1bP>|OmniPTY {}\x1b\\", env!("CARGO_PKG_VERSION"))
         );
     }
 

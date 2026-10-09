@@ -108,7 +108,7 @@ fn linux_beep() -> bool {
     }
 
     let spawned = std::thread::Builder::new()
-        .name("oxide-bell".into())
+        .name("omnipty-bell".into())
         .spawn(move || {
             let run = |cmd: &mut Command| {
                 cmd.stdin(Stdio::null())
@@ -454,7 +454,7 @@ impl Focusable for TerminalPane {
 }
 
 impl TerminalPane {
-    /// `command` (`oxide -e ...`) runs instead of the shell; `None` gives
+    /// `command` (`omnipty -e ...`) runs instead of the shell; `None` gives
     /// the ordinary shell pane.
     pub fn new(
         config: Rc<Config>,
@@ -474,7 +474,7 @@ impl TerminalPane {
                 cell_height: 17.0,
                 scale: 1.0,
             },
-            title: "oxide".into(),
+            title: "omnipty".into(),
             cwd: Some(working_dir.clone()),
             child_exited: None,
             focus_handle: cx.focus_handle(),
@@ -981,7 +981,7 @@ impl TerminalPane {
                 cx.notify();
             }
             AlacEvent::ResetTitle => {
-                self.title = "oxide".into();
+                self.title = "omnipty".into();
                 cx.emit(TerminalEvent::TitleChanged);
                 cx.notify();
             }
@@ -1766,7 +1766,7 @@ impl TerminalPane {
         self.write_command(&format!("{command}\r"));
     }
 
-    /// Widgets are only installed for the shells Oxide can inject into.
+    /// Widgets are only installed for the shells OmniPTY can inject into.
     fn shell_supports_widgets(&self) -> bool {
         let program = resolve_shell(self.config.shell.program.as_deref());
         let name = crate::terminal::session::shell_name(&program);
@@ -1783,7 +1783,7 @@ impl TerminalPane {
     // --- Workspace startup commands ---
 
     /// Whether the shell will say when it's ready (OSC 133 A) and how a
-    /// command it ran ended (133 D). Only the shells Oxide injects into.
+    /// command it ran ended (133 D). Only the shells OmniPTY injects into.
     fn startup_uses_markers(&self) -> bool {
         self.config.shell.integration && self.shell_supports_widgets()
     }
@@ -2351,7 +2351,7 @@ impl TerminalPane {
     }
 
     /// The code block whose "copy" link is under `point`: the markdown
-    /// renderer wraps that label in an `oxide-copy:N` hyperlink. Only a pane
+    /// renderer wraps that label in an `omnipty-copy:N` hyperlink. Only a pane
     /// that was handed preview code honours it, so other programs' output
     /// can't reach the clipboard this way.
     fn preview_code_at(&self, point: GridPoint) -> Option<String> {

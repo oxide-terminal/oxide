@@ -5,7 +5,7 @@
 //! through the `objc` runtime — real notifications, with a click that
 //! routes back to the pane. Outside a bundle (`cargo run`) the center has no
 //! bundle to attach to and aborts the process, so `osascript` posts a
-//! notification instead; those can't be clicked back into Oxide.
+//! notification instead; those can't be clicked back into OmniPTY.
 //!
 //! Delivery on Linux: `notify-send` (libnotify), which talks to whatever
 //! implements `org.freedesktop.Notifications` — mako, dunst, swaync, the
@@ -78,7 +78,7 @@ fn route_clicked(key: RouteKey) {
 
 /// Attach the delegate to the notification center. Apple requires this
 /// before the app finishes launching: a delegate installed later isn't
-/// consulted, and a notification arriving while Oxide is frontmost is
+/// consulted, and a notification arriving while OmniPTY is frontmost is
 /// then filed in Notification Center without a banner. No-op outside a
 /// bundle, where the center can't be used at all.
 pub fn init() {
@@ -132,11 +132,11 @@ mod linux {
     fn base_command(title: &str, body: &str) -> Command {
         let mut cmd = Command::new("notify-send");
         cmd.args([
-            "--app-name=Oxide",
-            "--icon=oxide",
+            "--app-name=OmniPTY",
+            "--icon=omnipty",
             // Lets daemons that key on the desktop file find the icon/name.
             "-h",
-            "string:desktop-entry:oxide",
+            "string:desktop-entry:omnipty",
             "--",
         ])
         .arg(title)
@@ -152,7 +152,7 @@ mod linux {
         // Blocks for as long as the notification is showing: off the main
         // thread. One thread per notification, gone when it's dismissed.
         std::thread::Builder::new()
-            .name("oxide-notify".into())
+            .name("omnipty-notify".into())
             .spawn(move || {
                 let mut with_action = base_command(&title, &body);
                 with_action.args(["-A", "default=Open", "-w"]);
@@ -196,7 +196,7 @@ mod macos {
 
     type Id = *mut Object;
 
-    const ROUTE_USERINFO_KEY: &str = "oxide.route";
+    const ROUTE_USERINFO_KEY: &str = "omnipty.route";
 
     fn nsstring(s: &str) -> Id {
         let bytes = s.as_bytes();
@@ -229,11 +229,11 @@ mod macos {
     fn install_delegate(center: Id) {
         DELEGATE_ONCE.call_once(|| unsafe {
             let superclass = class!(NSObject);
-            let Some(mut decl) = ClassDecl::new("OxideNotificationDelegate", superclass) else {
+            let Some(mut decl) = ClassDecl::new("OmniPTYNotificationDelegate", superclass) else {
                 return;
             };
 
-            // Show banners even while Oxide is frontmost — a command that
+            // Show banners even while OmniPTY is frontmost — a command that
             // finished in a background pane is still news.
             // Completion handlers arrive as blocks; objc's `Encode` covers raw
             // pointers, so they're typed as such and cast before calling.
@@ -244,8 +244,8 @@ mod macos {
                 _notification: Id,
                 handler: *mut c_void,
             ) {
-                if std::env::var_os("OXIDE_DEBUG_NOTIFY").is_some() {
-                    eprintln!("oxide: willPresentNotification");
+                if std::env::var_os("OMNIPTY_DEBUG_NOTIFY").is_some() {
+                    eprintln!("omnipty: willPresentNotification");
                 }
                 // UNNotificationPresentationOptionBanner (1<<4) | Sound (1<<1) | List (1<<3)
                 unsafe {
@@ -318,10 +318,10 @@ mod macos {
                 return;
             }
             install_delegate(center);
-            if std::env::var_os("OXIDE_DEBUG_NOTIFY").is_some() {
+            if std::env::var_os("OMNIPTY_DEBUG_NOTIFY").is_some() {
                 let delegate: Id = msg_send![center, delegate];
                 eprintln!(
-                    "oxide: posting notification; delegate set = {}",
+                    "omnipty: posting notification; delegate set = {}",
                     !delegate.is_null()
                 );
             }
@@ -343,7 +343,7 @@ mod macos {
                 let _: () = msg_send![content, setUserInfo: dict];
             }
 
-            let ident = nsstring(&format!("oxide-{}", route.unwrap_or(0)));
+            let ident = nsstring(&format!("omnipty-{}", route.unwrap_or(0)));
             let request: Id = msg_send![class!(UNNotificationRequest), requestWithIdentifier: ident content: content trigger: std::ptr::null::<Object>()];
             let on_added = ConcreteBlock::new(move |_error: Id| {}).copy();
             let _: () = msg_send![center, addNotificationRequest: request withCompletionHandler: &*on_added];

@@ -252,7 +252,7 @@ impl Default for NotificationsConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct CommandsConfig {
     pub track: bool,
-    /// Have the shell send each command line to Oxide, so history search
+    /// Have the shell send each command line to OmniPTY, so history search
     /// and notifications can name the command. The text stays in memory
     /// only; nothing is written to disk.
     pub emit_cmdline: bool,

@@ -44,7 +44,7 @@ pub struct SavedTab {
 }
 
 /// One pane, as saved: where its shell starts and what, if anything, it
-/// runs first. Plain data so a later project-file source (`.oxide.toml`)
+/// runs first. Plain data so a later project-file source (`.omnipty.toml`)
 /// can populate it too.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SavedPane {
@@ -179,8 +179,7 @@ impl PartialEq for SavedPaneCompat {
 }
 
 pub fn state_path() -> Option<PathBuf> {
-    let home = directories::BaseDirs::new()?.home_dir().to_path_buf();
-    Some(home.join(".cache/oxide/workspaces.json"))
+    Some(crate::paths::cache_dir().join("workspaces.json"))
 }
 
 /// Read any format version we've ever written. Returns the version the file
@@ -307,7 +306,7 @@ mod tests {
     }
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("oxide-ws-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("omnipty-ws-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

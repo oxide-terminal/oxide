@@ -2,7 +2,7 @@
 //!
 //! Blocking helpers — call on the background pool.
 //!
-//! The latest version comes from a manifest on downloads.oxideterminal.com
+//! The latest version comes from a manifest on downloads.omnipty.com
 //! (see RELEASING.md) with one entry per platform build.
 //!
 //! macOS: the entry points at a DMG in the same bucket. The DMG must carry a
@@ -22,7 +22,13 @@ use std::process::Command;
 /// Where the updater looks for the latest release. `scripts/release.sh`
 /// publishes it after the DMG it points at; `release-linux.sh` adds the
 /// Linux entry after the tarball is up.
-const MANIFEST_URL: &str = "https://downloads.oxideterminal.com/releases/stable.json";
+const MANIFEST_URL: &str = "https://downloads.omnipty.com/releases/stable.json";
+
+/// `OMNIPTY_MANIFEST_URL` overrides the manifest, so an upgrade can be
+/// rehearsed against a staging copy before the real one is published.
+fn manifest_url() -> String {
+    std::env::var("OMNIPTY_MANIFEST_URL").unwrap_or_else(|_| MANIFEST_URL.into())
+}
 
 /// The minisign public key updates must be signed with (`minisign -G`). While
 /// the file holds the placeholder text, macOS updates are refused.
@@ -69,8 +75,8 @@ pub fn fetch_latest() -> Result<Option<ReleaseInfo>, String> {
             "-w",
             "\n%{http_code}",
             "-A",
-            concat!("oxide-terminal/", env!("CARGO_PKG_VERSION")),
-            MANIFEST_URL,
+            concat!("omnipty/", env!("CARGO_PKG_VERSION")),
+            &manifest_url(),
         ])
         .output()
         .map_err(|e| format!("update check failed: {e}"))?;
@@ -143,7 +149,7 @@ fn parse_manifest(manifest: &serde_json::Value, os: &str, arch: &str) -> Option<
 /// version or architecture.
 #[cfg(any(target_os = "macos", test))]
 fn signed_comment(version: &str, arch: &str) -> String {
-    format!("oxide {version} macos-{arch}")
+    format!("omnipty {version} macos-{arch}")
 }
 
 /// Check `path` against a minisign `signature` made with `public_key`, and
@@ -191,9 +197,7 @@ fn verify_signature(
 /// the first launch after an update. Records the current version either way,
 /// so a second window opened at startup sees nothing.
 pub fn note_launch_version() -> Option<String> {
-    let path = directories::BaseDirs::new()?
-        .home_dir()
-        .join(".cache/oxide/last_version.txt");
+    let path = crate::paths::cache_dir().join("last_version.txt");
     let current = env!("CARGO_PKG_VERSION");
     let previous = std::fs::read_to_string(&path)
         .ok()
@@ -213,9 +217,7 @@ fn updated_from(previous: Option<&str>, current: &str) -> Option<String> {
 
 #[cfg(target_os = "macos")]
 fn updates_dir() -> Option<PathBuf> {
-    let dir = directories::BaseDirs::new()?
-        .home_dir()
-        .join(".cache/oxide/updates");
+    let dir = crate::paths::cache_dir().join("updates");
     std::fs::create_dir_all(&dir).ok()?;
     Some(dir)
 }
@@ -233,8 +235,8 @@ pub fn download(info: &ReleaseInfo) -> Result<PathBuf, String> {
     let verify = |path: &Path| verify_signature(path, UPDATE_PUBLIC_KEY, signature, &comment);
 
     let dir = updates_dir().ok_or("no cache directory")?;
-    let dest = dir.join(format!("Oxide-{}.dmg", info.version));
-    let partial = dir.join(format!("Oxide-{}.dmg.partial", info.version));
+    let dest = dir.join(format!("OmniPTY-{}.dmg", info.version));
+    let partial = dir.join(format!("OmniPTY-{}.dmg.partial", info.version));
     if dest.exists() {
         if verify(&dest).is_ok() {
             return Ok(dest);
@@ -324,6 +326,32 @@ open {bundle}
         .spawn()
         .map_err(|e| format!("couldn't start installer: {e}"))?;
     Ok(())
+}
+
+/// Finish the rename for a copy updated in place by Oxide 0.8.x: its
+/// updater copied this build's contents into `/Applications/Oxide.app`,
+/// where the folder name no longer matches the app inside. Move it to
+/// `OmniPTY.app` and relaunch from there; true means the caller should
+/// exit. If an `OmniPTY.app` is already next to it, leave both alone.
+#[cfg(target_os = "macos")]
+pub fn relocate_renamed_bundle() -> bool {
+    let Some(bundle) = installed_bundle() else {
+        return false;
+    };
+    if bundle.file_name().and_then(|n| n.to_str()) != Some("Oxide.app") {
+        return false;
+    }
+    let target = bundle.with_file_name("OmniPTY.app");
+    if target.exists() || std::fs::rename(&bundle, &target).is_err() {
+        return false;
+    }
+    // `open` on a bundle whose id is already running just activates us, so
+    // the relaunch has to come after we've exited.
+    Command::new("/bin/bash")
+        .arg("-c")
+        .arg(format!("sleep 1; open {}", sh_quote(&target)))
+        .spawn()
+        .is_ok()
 }
 
 #[cfg(test)]
@@ -445,17 +473,23 @@ mod tests {
         assert_eq!(split_status(b"body\nnot-a-number"), None);
     }
 
-    // Fixtures made with `rsign generate` / `rsign sign` (minisign-compatible)
-    // on a throwaway key that signs nothing real. The payload's trusted
-    // comment is "oxide 1.2.3 macos-aarch64".
-    const TEST_KEY: &str = "untrusted comment: minisign public key: 58F4D1FCED407935\nRWQ1eUDt/NH0WMVSbK5NalyE3K7bFDDpbwXoAU02CC3GEq15Hv4tCW92\n";
+    // Fixtures made with `minisign -G -W` / `minisign -S` on a throwaway key
+    // that signs nothing real. The payload's trusted
+    // comment is "omnipty 1.2.3 macos-aarch64".
+    const TEST_KEY: &str = "untrusted comment: minisign public key D66F6FFD24B82CD5
+RWTVLLgk/W9v1rlHSasnEHv8tFv6Prnst2FH8BwgIQ/CBIqizJ62LKRM
+";
     const OTHER_KEY: &str = "untrusted comment: minisign public key: 7217595898669E5F\nRWRfnmaYWFkXcmJ8XGPgA2+3eIhaLK4dvQMaVK6qNJlRkosec2ccVm8w\n";
-    const TEST_PAYLOAD: &[u8] = b"oxide test payload\n";
-    const TEST_SIG: &str = "untrusted comment: test\nRUQ1eUDt/NH0WGBfgeatoZmq9zHuJiWb3aL3RGqipUrZG4gCUEYmLhM+RY6EtzS62uzsRDpfWaegKfGD2ObBNl28ovrRLAGtwgQ=\ntrusted comment: oxide 1.2.3 macos-aarch64\n+Ct1Q/3ocZe+3M7xsfp+VBDr56XbW2086TyDmxM342A5SrhQ081meZyGxw5772jpzGnpAvQxHTao4LPuktnNCw==\n";
+    const TEST_PAYLOAD: &[u8] = b"omnipty test payload\n";
+    const TEST_SIG: &str = "untrusted comment: test
+RUTVLLgk/W9v1nUQH5kYnGCioeFAbCOyutVnqcXZ0tHIHrK0whI5JZpol3N6NwOn4HsWpkpC8oGAfNPvtBSDJW+7FlO80Tll4wg=
+trusted comment: omnipty 1.2.3 macos-aarch64
+/enZOCFwf9rVQvX29OOrywlcIJEB85LBuyDaKlnnRSB2Tq7q8cI7JjcnMdy5OtsQVoY0Ju1uZxyz1nVB1anCBQ==
+";
 
     fn temp_file(name: &str, bytes: &[u8]) -> PathBuf {
         let path =
-            std::env::temp_dir().join(format!("oxide-update-test-{}-{name}", std::process::id()));
+            std::env::temp_dir().join(format!("omnipty-update-test-{}-{name}", std::process::id()));
         std::fs::write(&path, bytes).unwrap();
         path
     }
@@ -469,7 +503,7 @@ mod tests {
             Ok(())
         );
 
-        let tampered = temp_file("tampered", b"oxide test payload!\n");
+        let tampered = temp_file("tampered", b"omnipty test payload!\n");
         let err = verify_signature(&tampered, TEST_KEY, TEST_SIG, &comment).unwrap_err();
         assert!(err.contains("doesn't match"), "{err}");
 
@@ -481,10 +515,10 @@ mod tests {
     fn signature_is_bound_to_key_version_and_arch() {
         let file = temp_file("bound", TEST_PAYLOAD);
         let err =
-            verify_signature(&file, OTHER_KEY, TEST_SIG, "oxide 1.2.3 macos-aarch64").unwrap_err();
+            verify_signature(&file, OTHER_KEY, TEST_SIG, "omnipty 1.2.3 macos-aarch64").unwrap_err();
         assert!(err.contains("different key"), "{err}");
         // A genuine signature can't be replayed as another version or arch.
-        for wrong in ["oxide 1.2.4 macos-aarch64", "oxide 1.2.3 macos-x86_64", ""] {
+        for wrong in ["omnipty 1.2.4 macos-aarch64", "omnipty 1.2.3 macos-x86_64", ""] {
             let err = verify_signature(&file, TEST_KEY, TEST_SIG, wrong).unwrap_err();
             assert!(err.contains("different version"), "{wrong}: {err}");
         }

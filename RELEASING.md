@@ -1,4 +1,4 @@
-# Releasing Oxide
+# Releasing OmniPTY
 
 The loop: **note changes in `CHANGELOG.md` → `bump.sh` → commit → `release.sh`**.
 
@@ -48,16 +48,16 @@ Two reasons this is one commit of its own:
 
 This runs `dmg.sh` (sign, notarize, staple), then:
 
-1. signs the update DMG with the minisign key (`~/.config/oxide-release/update.key`,
+1. signs the update DMG with the minisign key (`~/.config/omnipty-release/update.key`,
    or `$UPDATE_KEY`), once per architecture in the binary;
-2. uploads the DMGs and signatures to the `oxide-releases` R2 bucket under
-   `oxide/<version>/`, and checks they serve from
-   `https://downloads.oxideterminal.com/oxide/<version>/`;
+2. uploads the DMGs and signatures to the `omnipty-releases` R2 bucket under
+   `omnipty/<version>/`, and checks they serve from
+   `https://downloads.omnipty.com/omnipty/<version>/`;
 3. creates the GitHub release with both DMGs, with the `## [<version>]`
    section of `CHANGELOG.md` as the notes;
 4. writes the update manifest — `releases/stable.json` in the bucket, plus a
    `releases/<version>.json` copy for rollbacks;
-5. refreshes `oxide/latest/Oxide.dmg`, the one object that changes in place:
+5. refreshes `omnipty/latest/OmniPTY.dmg`, the one object that changes in place:
    it's what the website's download links point at, so they never go stale;
 6. bumps the Homebrew cask and regenerates the site changelog.
 
@@ -72,8 +72,8 @@ skips objects that are already in the bucket with the same size, and leaves
 an existing GitHub release alone, so it picks up where it stopped. The DMG
 goes up under two names:
 
-- `Oxide-<version>.dmg` — what the website's download button and the cask serve
-- `Oxide-<version>-update.dmg` — the same bytes, what the in-app updater fetches
+- `OmniPTY-<version>.dmg` — what the website's download button and the cask serve
+- `OmniPTY-<version>-update.dmg` — the same bytes, what the in-app updater fetches
 
 Both R2 and GitHub count downloads per object, so the fresh-install count stays
 apart from updates.
@@ -88,12 +88,12 @@ step 2. The script refuses to run if the tag already exists.
 
 Notes on the DMG build:
 
-- Notary credentials come from the `oxide-notary` keychain profile
+- Notary credentials come from the `omnipty-notary` keychain profile
   (falls back to `APPLE_ID` / `APPLE_TEAM_ID` / `APPLE_PASSWORD` env vars).
   To (re)create the profile:
 
   ```sh
-  xcrun notarytool store-credentials oxide-notary \
+  xcrun notarytool store-credentials omnipty-notary \
     --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_PASSWORD"
   ```
 
@@ -106,16 +106,16 @@ If the build succeeded but publishing failed, or you need `--target <sha>` to
 tag a different commit (`gh` rejects abbreviated SHAs; pass the full hash):
 
 ```sh
-cp target/Oxide-0.8.1.dmg target/Oxide-0.8.1-update.dmg
-minisign -S -s ~/.config/oxide-release/update.key \
-  -m target/Oxide-0.8.1-update.dmg -x target/Oxide-0.8.1-update.dmg.macos-aarch64.minisig \
-  -t "oxide 0.8.1 macos-aarch64"
-for f in Oxide-0.8.1.dmg Oxide-0.8.1-update.dmg Oxide-0.8.1-update.dmg.macos-aarch64.minisig; do
-  npx wrangler r2 object put "oxide-releases/oxide/0.8.1/$f" --remote --file "target/$f" \
+cp target/OmniPTY-0.8.1.dmg target/OmniPTY-0.8.1-update.dmg
+minisign -S -s ~/.config/omnipty-release/update.key \
+  -m target/OmniPTY-0.8.1-update.dmg -x target/OmniPTY-0.8.1-update.dmg.macos-aarch64.minisig \
+  -t "omnipty 0.8.1 macos-aarch64"
+for f in OmniPTY-0.8.1.dmg OmniPTY-0.8.1-update.dmg OmniPTY-0.8.1-update.dmg.macos-aarch64.minisig; do
+  npx wrangler r2 object put "omnipty-releases/omnipty/0.8.1/$f" --remote --file "target/$f" \
     --cache-control "public, max-age=31536000, immutable"
 done
-gh release create v0.8.1 target/Oxide-0.8.1-update.dmg target/Oxide-0.8.1.dmg \
-  --title "Oxide v0.8.1" \
+gh release create v0.8.1 target/OmniPTY-0.8.1-update.dmg target/OmniPTY-0.8.1.dmg \
+  --title "OmniPTY v0.8.1" \
   --notes "$(sed -n '/^## \[0.8.1\]/,/^## \[/p' CHANGELOG.md | sed '1d;$d')"
 ```
 
@@ -126,19 +126,19 @@ as one JSON string; `jq -Rs . < file.minisig` produces it):
 {
   "version": "0.8.1",
   "pub_date": "2026-10-07T18:00:00Z",
-  "notes_url": "https://oxideterminal.com/changelog/#v0.8.1",
-  "release_url": "https://github.com/oxide-terminal/oxide/releases/tag/v0.8.1",
-  "download_url": "https://downloads.oxideterminal.com/oxide/0.8.1/Oxide-0.8.1.dmg",
+  "notes_url": "https://omnipty.com/changelog/#v0.8.1",
+  "release_url": "https://github.com/omnipty/omnipty/releases/tag/v0.8.1",
+  "download_url": "https://downloads.omnipty.com/omnipty/0.8.1/OmniPTY-0.8.1.dmg",
   "sha256": "<sha256 of the DMG>",
   "assets": {
     "macos-aarch64": {
-      "url": "https://downloads.oxideterminal.com/oxide/0.8.1/Oxide-0.8.1-update.dmg",
+      "url": "https://downloads.omnipty.com/omnipty/0.8.1/OmniPTY-0.8.1-update.dmg",
       "size": 11705200,
       "sha256": "<sha256 of the DMG>",
-      "signature": "untrusted comment: …\n…\ntrusted comment: oxide 0.8.1 macos-aarch64\n…\n"
+      "signature": "untrusted comment: …\n…\ntrusted comment: omnipty 0.8.1 macos-aarch64\n…\n"
     },
     "linux-x86_64": {
-      "url": "https://downloads.oxideterminal.com/oxide/0.8.1/oxide-0.8.1-linux-x86_64.tar.gz",
+      "url": "https://downloads.omnipty.com/omnipty/0.8.1/omnipty-0.8.1-linux-x86_64.tar.gz",
       "size": 8000000,
       "sha256": "<sha256 of the tarball>",
       "signature": "…"
@@ -149,10 +149,10 @@ as one JSON string; `jq -Rs . < file.minisig` produces it):
 
 (`linux-x86_64` is added by `release-linux.sh`; `release_url` is what the
 Linux pill opens; `size` is for the website's download button. Finally
-`oxide/latest/Oxide.dmg` gets a copy of the DMG with
+`omnipty/latest/OmniPTY.dmg` gets a copy of the DMG with
 `--cache-control "public, max-age=300"`.)
 
-The trusted comment must be exactly `oxide <version> macos-<arch>` — the
+The trusted comment must be exactly `omnipty <version> macos-<arch>` — the
 updater checks it after the signature, so a real signature can't be reused for
 another version. Upload it as `releases/0.8.1.json` (immutable) and
 `releases/stable.json` (`--cache-control "public, max-age=60"`).
@@ -166,17 +166,17 @@ on it:
 
 ```sh
 ssh linux-box
-cd ~/Code/oxide-app/oxide
+cd ~/Code/oxide-app/oxide        # the clone keeps its old folder name
 git pull --ff-only && git fetch --tags    # HEAD is at (or just past) v0.8.1
 ./scripts/release-linux.sh
 ```
 
-This runs `linux-package.sh`, then signs `oxide-<version>-linux-x86_64.tar.gz`
+This runs `linux-package.sh`, then signs `omnipty-<version>-linux-x86_64.tar.gz`
 with the same minisign key, uploads it and its `.minisig` to the bucket
-under `oxide/<version>/`, mirrors it onto the GitHub release, adds a
+under `omnipty/<version>/`, mirrors it onto the GitHub release, adds a
 `linux-x86_64` entry to `releases/<version>.json` and `releases/stable.json`,
-refreshes `oxide/latest/oxide-linux-x86_64.tar.gz` for the website's Linux
-download link, and bumps `packaging/aur/oxide-terminal-bin/PKGBUILD` to the
+refreshes `omnipty/latest/omnipty-linux-x86_64.tar.gz` for the website's Linux
+download link, and bumps `packaging/aur/omnipty-bin/PKGBUILD` to the
 new version, URL and checksum. It refuses to run if the release or the manifest doesn't
 exist yet, if the bucket already has this tarball, or if anything that goes
 into the build (`Cargo.*`, `src/`, `assets/`, `packaging/docker/`) changed
@@ -200,7 +200,7 @@ from scratch and takes a while; later ones reuse `target/docker/`. Commit
 that bump:
 
 ```sh
-git commit -am "aur: oxide-terminal-bin 0.8.1" && git push
+git commit -am "aur: omnipty-bin 0.8.1" && git push
 ```
 
 The package isn't on the AUR yet, so that's the end of the Linux release.
@@ -208,14 +208,14 @@ Once there's an AUR account (see the setup list below), each release also
 publishes it:
 
 ```sh
-cd packaging/aur/oxide-terminal-bin && makepkg --printsrcinfo > .SRCINFO
-cp PKGBUILD .SRCINFO ~/aur/oxide-terminal-bin/
-cd ~/aur/oxide-terminal-bin && git add -A && git commit -m "v0.8.1" && git push
+cd packaging/aur/omnipty-bin && makepkg --printsrcinfo > .SRCINFO
+cp PKGBUILD .SRCINFO ~/aur/omnipty-bin/
+cd ~/aur/omnipty-bin && git add -A && git commit -m "v0.8.1" && git push
 ```
 
-Before the first push, `makepkg -si` in `packaging/aur/oxide-terminal-bin`
+Before the first push, `makepkg -si` in `packaging/aur/omnipty-bin`
 is the local check that the PKGBUILD fetches and installs from
-downloads.oxideterminal.com.
+downloads.omnipty.com.
 
 Installed Linux copies look for the manifest's `linux-x86_64` entry, so the
 update pill only appears once this step is done. The tarball is signed for
@@ -226,7 +226,7 @@ One-time setup on the Linux box:
 
 - `gh auth login` (the GitHub mirror goes through `gh`).
 - `pacman -S minisign jq`, and a copy of the signing key at
-  `~/.config/oxide-release/update.key` (or `UPDATE_KEY=…`). It's the same key
+  `~/.config/omnipty-release/update.key` (or `UPDATE_KEY=…`). It's the same key
   as on the Mac — copy it over `scp`, never through a repo.
 - Node, then `npx wrangler login` (the browser step works over SSH by pasting
   the URL it prints). Set `CLOUDFLARE_ACCOUNT_ID` if `npx wrangler whoami`
@@ -240,14 +240,24 @@ One-time setup on the Linux box:
 - Not yet done — an [AUR account](https://aur.archlinux.org/register) with
   your SSH public key added, then the package clone; the first push creates
   the package:
-  `git clone ssh://aur@aur.archlinux.org/oxide-terminal-bin.git ~/aur/oxide-terminal-bin`.
+  `git clone ssh://aur@aur.archlinux.org/omnipty-bin.git ~/aur/omnipty-bin`.
   Add `aur.archlinux.org` to `~/.ssh/known_hosts` on first contact.
+
+## The legacy Oxide channel
+
+Copies installed as Oxide (0.8.x and earlier) read
+`https://downloads.oxideterminal.com/releases/stable.json` from the old
+`oxide-releases` bucket, and only accept a signature whose trusted comment
+is `oxide <version> macos-<arch>`. That bucket is frozen at the 0.9.0 bridge
+release and is never written by `release.sh`; it carries those copies to
+0.9.0, after which they update from here like everyone else. How it was set
+up is in `oxide-support/RENAME_RUNBOOK.md`. Leave it serving.
 
 ## What happens after publishing
 
 Installed macOS copies read
-`https://downloads.oxideterminal.com/releases/stable.json` on launch and every
-6 hours (or immediately via **Oxide → Check for Updates…**). They download the
+`https://downloads.omnipty.com/releases/stable.json` on launch and every
+6 hours (or immediately via **OmniPTY → Check for Updates…**). They download the
 DMG in the background, verify its minisign signature against the key compiled
 into the app (`update.pub`), and only then show the top-right "click to
 install" pill; on click they swap the bundle and relaunch. A download whose
@@ -261,19 +271,19 @@ the release is mirrored there.
 
 Nothing else to do on the publishing side.
 
-## Publishing to downloads.oxideterminal.com
+## Publishing to downloads.omnipty.com
 
-One-time setup on the release machine. The bucket (`oxide-releases`, custom
-domain `downloads.oxideterminal.com`) already exists in the Cloudflare account.
+One-time setup on the release machine. The bucket (`omnipty-releases`, custom
+domain `downloads.omnipty.com`) already exists in the Cloudflare account.
 
 1. **Signing key.** Generate a minisign keypair and keep the secret key out of
    every repo:
 
    ```sh
    brew install minisign
-   mkdir -p ~/.config/oxide-release
-   minisign -G -p ~/.config/oxide-release/update.pub -s ~/.config/oxide-release/update.key
-   cp ~/.config/oxide-release/update.pub update.pub    # in the oxide repo; commit it
+   mkdir -p ~/.config/omnipty-release
+   minisign -G -p ~/.config/omnipty-release/update.pub -s ~/.config/omnipty-release/update.key
+   cp ~/.config/omnipty-release/update.pub update.pub    # in the omnipty repo; commit it
    ```
 
    `minisign -G` asks for a password; `-S` asks for it again at each release.
@@ -300,21 +310,21 @@ domain `downloads.oxideterminal.com`) already exists in the Cloudflare account.
 
 3. **Caching.** Objects are uploaded with their `Cache-Control` set:
    versioned files a year and immutable, `stable.json` one minute, the
-   `oxide/latest/` copies five minutes. Cloudflare's
+   `omnipty/latest/` copies five minutes. Cloudflare's
    edge honours these on the custom domain, so nothing further is needed. If
    an update ever seems slow to appear, purge `releases/stable.json` from the
    dashboard (Caching → Configuration → Custom Purge).
 
 4. **Cross-origin reads.** The homepage's download button reads
    `stable.json` from the browser to show the version, date and size, which
-   needs a CORS policy on the bucket (R2 → `oxide-releases` → Settings → CORS
+   needs a CORS policy on the bucket (R2 → `omnipty-releases` → Settings → CORS
    policy). Without it the button still works; the version line just stays
    blank.
 
    ```json
    [
      {
-       "AllowedOrigins": ["https://oxideterminal.com"],
+       "AllowedOrigins": ["https://omnipty.com"],
        "AllowedMethods": ["GET", "HEAD"],
        "AllowedHeaders": ["*"],
        "MaxAgeSeconds": 3600
@@ -326,17 +336,17 @@ domain `downloads.oxideterminal.com`) already exists in the Cloudflare account.
    at a scratch bucket, or just check the pieces:
 
    ```sh
-   npx wrangler r2 object put oxide-releases/test.txt --remote --pipe <<< hi
-   curl -fsS https://downloads.oxideterminal.com/test.txt
-   npx wrangler r2 object delete oxide-releases/test.txt --remote
+   npx wrangler r2 object put omnipty-releases/test.txt --remote --pipe <<< hi
+   curl -fsS https://downloads.omnipty.com/test.txt
+   npx wrangler r2 object delete omnipty-releases/test.txt --remote
    ```
 
 **Rolling back** a bad release: put the previous version's manifest back as
 `stable.json` —
 
 ```sh
-npx wrangler r2 object get oxide-releases/releases/0.6.2.json --remote --file /tmp/m.json
-npx wrangler r2 object put oxide-releases/releases/stable.json --remote --file /tmp/m.json \
+npx wrangler r2 object get omnipty-releases/releases/0.6.2.json --remote --file /tmp/m.json
+npx wrangler r2 object put omnipty-releases/releases/stable.json --remote --file /tmp/m.json \
   --content-type application/json --cache-control "public, max-age=60"
 ```
 
@@ -360,7 +370,7 @@ needs the next release; ship it as a new version number.
 - Version numbering: bug fixes and polish get a patch bump (`0.1.1`), a new
   user-facing capability gets a minor bump (`0.2.0`).
 - **Don't rebuild while a notarization is in flight** — `bundle.sh`/`dmg.sh`
-  overwrite `target/Oxide.app`, and the submitted ticket only staples to the
+  overwrite `target/OmniPTY.app`, and the submitted ticket only staples to the
   exact bytes that were uploaded.
 - Development builds (`cargo run`) never auto-check for updates; only
   installed `.app` bundles do — and on Linux, release builds outside a

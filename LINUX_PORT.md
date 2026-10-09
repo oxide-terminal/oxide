@@ -1,6 +1,6 @@
 # Linux Port
 
-**Status (2026-09-22): ported.** Oxide builds, links, passes its test suite
+**Status (2026-09-22): ported.** OmniPTY builds, links, passes its test suite
 and runs on Linux (Wayland, Vulkan). The `linux-port` branch carries the
 work; this file is now the record of what was done, what was verified on
 real hardware, and what is still open. The original plan's phases are kept
@@ -28,7 +28,7 @@ Nothing else in the crate knows which OS it's on.
 | trash | `~/.Trash` | XDG trash, via the `trash` crate on both | `tree/mod.rs` `delete_entry` |
 | reveal | `open -R` | `App::reveal_path` (Finder / `org.freedesktop.FileManager1`) on both | `tree/mod.rs`, `keymap/actions.rs` title |
 | no-`$EDITOR` fallback | `open -t` | `xdg-open` | `app.rs` `editor_snippet` |
-| window | hidden titlebar + 30px inset, traffic lights | `app_id = "oxide"`, no inset, compositor decorations | `app.rs` `open_oxide_window`, `Oxide::render` |
+| window | hidden titlebar + 30px inset, traffic lights | `app_id = "omnipty"`, no inset, compositor decorations | `app.rs` `open_omnipty_window`, `OmniPTY::render` |
 | lifecycle | stays running with no windows, Dock reopens | last window closed → quit; no menu bar | `main.rs` |
 | open-modifier | cmd-click / cmd-hover | ctrl-click / ctrl-hover | `terminal::open_modifier`, five call sites |
 | keymap | `MACOS` table (`cmd-*`) | `LINUX` table (`ctrl-shift-*`, `alt-<n>`); `SHARED` for the rest | `keymap/default.rs` |
@@ -38,20 +38,20 @@ Nothing else in the crate knows which OS it's on.
 
 Packaging and CI:
 
-- `scripts/linux-package.sh` → `target/oxide-<version>-linux-<arch>.tar.gz`
+- `scripts/linux-package.sh` → `target/omnipty-<version>-linux-<arch>.tar.gz`
   (binary, `.desktop`, hicolor icons, licence, `install.sh`).
 - `scripts/linux-install.sh` (shipped as `install.sh`): `~/.local` by
   default, `--prefix`, `--uninstall`.
 - `scripts/release-linux.sh`: build, `gh release upload`, bump the AUR
   PKGBUILD. The release is two-machine — see `RELEASING.md` §4.
-- `packaging/aur/oxide-terminal-bin/PKGBUILD`: from the release tarball.
+- `packaging/aur/omnipty-bin/PKGBUILD`: from the release tarball.
   `depends` reflects `ldd` on the built binary (xcb/xkbcommon), plus the
   runtime-loaded `wayland`, `vulkan-icd-loader`, and `libnotify`.
-- `assets/linux/`: `oxide.desktop` (`StartupWMClass=oxide` matches the
+- `assets/linux/`: `omnipty.desktop` (`StartupWMClass=omnipty` matches the
   `app_id`) and pre-rendered hicolor icons, so packaging needs no image tool.
-- `scripts/oxide-cli` branches on `uname`; on Linux it finds the real
+- `scripts/omnipty-cli` branches on `uname`; on Linux it finds the real
   binary on PATH and detaches. Not needed for normal installs — the binary
-  itself is `oxide` and takes the same arguments.
+  itself is `omnipty` and takes the same arguments.
 - `.github/workflows/ci.yml`: the Linux job is now `cargo build
   --all-targets` + `cargo test`, required (no `continue-on-error`), with
   `fish zsh dash libnotify-bin` installed for the cross-shell tests.
@@ -62,11 +62,11 @@ Done with the debug build, a scratch directory, `grim` screenshots and
 `wtype` for keys (Omarchy's `hyprctl dispatch` is a Lua wrapper —
 `sendshortcut`/`focuswindow` in the classic syntax silently error, and
 focus follows the mouse, so keystroke injection is only reliable while the
-pointer is over the Oxide window).
+pointer is over the OmniPTY window).
 
 - [x] `cargo build --all-targets` links; `cargo test`: 173 passed
 - [x] `cargo run` opens a window under Hyprland; `hyprctl clients` shows
-      `class: oxide`, `xwayland: false`, tiled with no top inset
+      `class: omnipty`, `xwayland: false`, tiled with no top inset
 - [x] shell spawns, prompt renders with the bundled Nerd Font, powerline
       glyphs correct
 - [x] tree follows `cd` (procfs `cwd`); status bar and title update
@@ -99,7 +99,7 @@ to another window):
       workspace with a startup command)
 - [ ] closing the last window (`ctrl-shift-w` on the last pane) exits the
       process
-- [ ] **X11**: `WAYLAND_DISPLAY= oxide` on this box starts, spawns the
+- [ ] **X11**: `WAYLAND_DISPLAY= omnipty` on this box starts, spawns the
       shell and runs its event loop, but no XWayland window ever appears
       (no `_NET_CLIENT_LIST` entry, nothing on stderr). Not chased further —
       Wayland is the target here. Worth a look on a real Xorg session
@@ -133,16 +133,16 @@ to another window):
 11. **Window bounds** (deviation from the plan): still saved and restored on
     Linux. Harmless under a tiling WM (the compositor overrides) and useful
     under a floating one.
-12. **Binary name**: the Linux binary is `oxide`; there is no wrapper in
-    the tarball or the package. `scripts/oxide-cli` is optional, for the
+12. **Binary name**: the Linux binary is `omnipty`; there is no wrapper in
+    the tarball or the package. `scripts/omnipty-cli` is optional, for the
     macOS-style detached launch.
 
 ## Open items / follow-ups
 
-- ~~**`-e <command>` flag** so Oxide can be an `xdg-terminal-exec` target
+- ~~**`-e <command>` flag** so OmniPTY can be an `xdg-terminal-exec` target
   (Omarchy's Super+Return).~~ Done: `-e` and `--app-id` in `cli.rs`, the
   first pane runs the command with no shell integration, and
-  `assets/linux/oxide.desktop` declares `X-TerminalArgExec` /
+  `assets/linux/omnipty.desktop` declares `X-TerminalArgExec` /
   `X-TerminalArgAppId`. Pinned workspaces are not restored for a `-e` launch.
 - **X11** (above).
 - ~~**`bell = "sound"`** on Linux: XDG sound theme / PipeWire, if anyone

@@ -127,7 +127,7 @@ pub struct FileTree {
     pub root: PathBuf,
     /// Linux: the window's ☰ menu button floats over the header's corner,
     /// so the root name is indented to clear it. The window sets this from
-    /// its layout (`Oxide::app_menu_corner`).
+    /// its layout (`OmniPTY::app_menu_corner`).
     pub app_menu_clearance: bool,
     nodes: HashMap<PathBuf, Node>,
     visible: Vec<VisibleRow>,
@@ -1065,7 +1065,7 @@ impl FileTree {
                 let scan_parent = path.parent().map(Path::to_path_buf).unwrap_or(parent);
                 self.scan_dir(scan_parent, cx);
             }
-            Err(e) => eprintln!("oxide: create {path:?}: {e}"),
+            Err(e) => eprintln!("omnipty: create {path:?}: {e}"),
         }
     }
 
@@ -1080,7 +1080,7 @@ impl FileTree {
                 self.pending_select = Some(new_path);
                 self.scan_dir(parent, cx);
             }
-            Err(e) => eprintln!("oxide: rename {target:?}: {e}"),
+            Err(e) => eprintln!("omnipty: rename {target:?}: {e}"),
         }
     }
 
@@ -1100,7 +1100,7 @@ impl FileTree {
             return;
         }
         if dest.exists() {
-            eprintln!("oxide: move {target:?}: {dest:?} already exists");
+            eprintln!("omnipty: move {target:?}: {dest:?} already exists");
             return;
         }
         let (Some(old_parent), Some(new_parent)) = (
@@ -1123,7 +1123,7 @@ impl FileTree {
                     self.scan_dir(new_parent, cx);
                 }
             }
-            Err(e) => eprintln!("oxide: move {target:?}: {e}"),
+            Err(e) => eprintln!("omnipty: move {target:?}: {e}"),
         }
     }
 
@@ -1142,7 +1142,7 @@ impl FileTree {
                 std::fs::remove_file(&target)
             };
             if let Err(e) = result {
-                eprintln!("oxide: delete {target:?}: {e}");
+                eprintln!("omnipty: delete {target:?}: {e}");
             }
         }
         remove_subtree(&mut self.nodes, &target);

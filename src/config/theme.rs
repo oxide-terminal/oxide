@@ -55,7 +55,7 @@ const SOLARIZED_DARK: Palette = [
     "#268bd2", "#d33682", "#2aa198", "#eee8d5", "#586e75", "#cb4b16", "#859900", "#b58900",
     "#268bd2", "#6c71c4", "#2aa198", "#fdf6e3",
 ];
-const OXIDE: Palette = [
+const OMNIPTY: Palette = [
     "#100d0c", "#e8ddd5", "#fab387", "#4a3428", "#3a2e28", "#e2725b", "#a6b86a", "#e5a458",
     "#7d9bb8", "#c78a92", "#8fb0a0", "#c9bcb2", "#5c4a3d", "#f0876f", "#b8cc7a", "#f5b96a",
     "#93b3d4", "#dda0aa", "#a3c9b6", "#e8ddd5",
@@ -165,7 +165,7 @@ pub const PRESET_NAMES: &[&str] = &[
     "miasma",
     "nord",
     "osaka-jade",
-    "oxide",
+    "omnipty",
     "retro-82",
     "ristretto",
     "rose-pine-dawn",
@@ -175,6 +175,13 @@ pub const PRESET_NAMES: &[&str] = &[
     "vantablack",
     "white",
 ];
+
+/// The listed name for a preset, or None for an unknown one. Accepts
+/// `oxide`, the palette's name before the rename, so configs keep working.
+pub fn canonical_preset(name: &str) -> Option<&'static str> {
+    let name = if name == "oxide" { "omnipty" } else { name };
+    PRESET_NAMES.iter().copied().find(|p| *p == name)
+}
 
 fn preset(name: &str) -> Option<&'static Palette> {
     match name {
@@ -194,7 +201,7 @@ fn preset(name: &str) -> Option<&'static Palette> {
         "miasma" => Some(&MIASMA),
         "nord" => Some(&NORD),
         "osaka-jade" => Some(&OSAKA_JADE),
-        "oxide" => Some(&OXIDE),
+        "omnipty" => Some(&OMNIPTY),
         "retro-82" => Some(&RETRO_82),
         "ristretto" => Some(&RISTRETTO),
         "rose-pine-dawn" => Some(&ROSE_PINE_DAWN),
@@ -246,12 +253,8 @@ impl Theme {
         // Unknown preset names fall back to the default palette; the config
         // loader surfaces a banner for that case.
         let (preset_name, base) = name
-            .and_then(|n| {
-                PRESET_NAMES
-                    .iter()
-                    .find(|p| **p == n)
-                    .map(|p| (*p, preset(n).unwrap()))
-            })
+            .and_then(canonical_preset)
+            .map(|p| (p, preset(p).unwrap()))
             .unwrap_or(("catppuccin-mocha", &CATPPUCCIN_MOCHA));
         let pick = |explicit: &Option<String>, base_ix: usize| -> Hsla {
             explicit
@@ -324,6 +327,20 @@ mod tests {
             };
             let _ = Theme::from_config(&config); // pick() unwraps on bad hex
         }
+    }
+
+    #[test]
+    fn old_name_resolves_to_the_renamed_palette() {
+        assert_eq!(canonical_preset("oxide"), Some("omnipty"));
+        assert_eq!(canonical_preset("nord"), Some("nord"));
+        assert_eq!(canonical_preset("nope"), None);
+        let c = ColorsConfig {
+            preset: Some("oxide".into()),
+            ..Default::default()
+        };
+        let theme = Theme::from_config(&c);
+        assert_eq!(theme.preset, "omnipty");
+        assert_eq!(theme.background, parse_hex(OMNIPTY[0]).unwrap());
     }
 
     #[test]

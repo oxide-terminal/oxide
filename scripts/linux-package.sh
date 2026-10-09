@@ -6,7 +6,7 @@
 #   DOCKER="sudo docker" scripts/linux-package.sh   if your user can't reach the daemon
 #   NO_DOCKER=1 scripts/linux-package.sh            build on the host (see below)
 #
-# Produces target/oxide-<version>-linux-<arch>.tar.gz containing the binary,
+# Produces target/omnipty-<version>-linux-<arch>.tar.gz containing the binary,
 # a .desktop entry, hicolor icons, the licence and an install script. That
 # name is what the in-app update check looks for on Linux, so keep it.
 #
@@ -24,7 +24,7 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
 ARCH=$(uname -m)
-NAME="oxide-${VERSION}-linux-${ARCH}"
+NAME="omnipty-${VERSION}-linux-${ARCH}"
 STAGE="$ROOT/target/$NAME"
 TARBALL="$ROOT/target/$NAME.tar.gz"
 
@@ -32,7 +32,7 @@ TARBALL="$ROOT/target/$NAME.tar.gz"
 # packaging/docker/Dockerfile; change them together.
 GLIBC_FLOOR="2.35"
 DOCKER="${DOCKER:-docker}"
-IMAGE="oxide-linux-build"
+IMAGE="omnipty-linux-build"
 # Everything the container writes lands here: cargo's target dir, plus its
 # registry and git caches under cargo-home/ so a rebuild doesn't refetch every
 # crate. Kept apart from target/release so host and container builds never
@@ -49,7 +49,7 @@ if [[ -z "${ALLOW_DIRTY:-}" && -n "$(git status --porcelain 2>/dev/null)" ]]; th
   exit 1
 fi
 
-LOCK_VERSION=$(awk '/^name = "oxide"$/{getline; gsub(/[",]/, "", $3); print $3; exit}' Cargo.lock)
+LOCK_VERSION=$(awk '/^name = "omnipty"$/{getline; gsub(/[",]/, "", $3); print $3; exit}' Cargo.lock)
 if [[ "$LOCK_VERSION" != "$VERSION" ]]; then
   echo "error: Cargo.lock says $LOCK_VERSION but Cargo.toml says $VERSION." >&2
   echo "       Run 'cargo check' to refresh the lock, then amend your release commit." >&2
@@ -58,7 +58,7 @@ fi
 
 if [[ -n "${NO_DOCKER:-}" ]]; then
   cargo build --release --locked
-  BIN="$ROOT/target/release/oxide"
+  BIN="$ROOT/target/release/omnipty"
 else
   # $DOCKER is unquoted on purpose: "sudo docker" is two words.
   if ! $DOCKER info >/dev/null 2>&1; then
@@ -86,7 +86,7 @@ else
     --env CARGO_HOME=/out/cargo-home \
     --env CARGO_TARGET_DIR=/out \
     "$IMAGE" cargo build --release --locked
-  BIN="$OUT/release/oxide"
+  BIN="$OUT/release/omnipty"
 fi
 
 # Check what the binary actually asks of glibc before it goes anywhere. This
@@ -121,13 +121,13 @@ GLIBC_NEEDED=$(objdump -T "$BIN" | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sed 's/GLIB
 
 rm -rf "$STAGE" "$TARBALL"
 mkdir -p "$STAGE"
-cp "$BIN" "$STAGE/oxide"
-strip "$STAGE/oxide" 2>/dev/null || true
-cp "$ROOT/assets/linux/oxide.desktop" "$STAGE/oxide.desktop"
+cp "$BIN" "$STAGE/omnipty"
+strip "$STAGE/omnipty" 2>/dev/null || true
+cp "$ROOT/assets/linux/omnipty.desktop" "$STAGE/omnipty.desktop"
 cp -R "$ROOT/assets/linux/icons" "$STAGE/icons"
 cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 cp "$ROOT/scripts/linux-install.sh" "$STAGE/install.sh"
-chmod +x "$STAGE/oxide" "$STAGE/install.sh"
+chmod +x "$STAGE/omnipty" "$STAGE/install.sh"
 
 tar -C "$ROOT/target" -czf "$TARBALL" "$NAME"
 rm -rf "$STAGE"

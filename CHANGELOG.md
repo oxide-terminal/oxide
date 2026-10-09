@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Oxide. The format follows
+All notable changes to OmniPTY (Oxide before 0.9.0). The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
@@ -10,6 +10,24 @@ GitHub release notes. **Help → What's New** shows this file inside the app, so
 write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
+
+### Changed
+
+- **Oxide is now OmniPTY.** Same terminal, new name: there's an unrelated
+  company called Oxide and the clash was confusing people. If you already had
+  Oxide installed, this update does the move for you: the app becomes
+  `OmniPTY.app`, your `config.toml`, themes and pinned workspaces are copied
+  to `~/.config/omnipty` and `~/.cache/omnipty` (the old directories are left
+  as they were), and `theme = "oxide"` still selects the same palette, now
+  also called `omnipty`. Shells get `OMNIPTY_SESSION` and `OMNIPTY_VERSION`;
+  the old `OXIDE_*` names stay exported through 0.9.x, so update any
+  dotfiles that read them before 0.10. A Dock icon pinned to the old
+  `Oxide.app` path needs re-adding. Homebrew users: `brew upgrade` still
+  works once, then switch casks with `brew uninstall --cask oxide-terminal
+  && brew install --cask omnipty/tap/omnipty`. The website is now
+  omnipty.com; the old addresses redirect.
+- `OMNIPTY_MANIFEST_URL` points the updater at a different manifest, for
+  testing a release before it's published.
 
 ### Security
 

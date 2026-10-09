@@ -2,7 +2,7 @@
 //! input back, and watches for the child exiting.
 //!
 //! This replaces `alacritty_terminal::event_loop::EventLoop` so the byte
-//! stream can be split at the OSC markers Oxide's shell integration emits.
+//! stream can be split at the OSC markers OmniPTY's shell integration emits.
 //! Alacritty's parser drops unknown OSCs before anyone can see them; here
 //! each recognised marker ends a parser slice, and the cursor is sampled in
 //! between, so a marker's grid row is exact rather than "somewhere in the
@@ -320,7 +320,7 @@ impl<L: EventListener + Send + 'static> EventLoop<L> {
             let poll_opts = PollMode::Level;
             let mut interest = PollingEvent::readable(0);
             if let Err(err) = unsafe { self.pty.register(&self.poll, interest, poll_opts) } {
-                eprintln!("oxide: pty registration failed: {err}");
+                eprintln!("omnipty: pty registration failed: {err}");
                 return;
             }
 
@@ -339,7 +339,7 @@ impl<L: EventListener + Send + 'static> EventLoop<L> {
                     match err.kind() {
                         ErrorKind::Interrupted => continue,
                         _ => {
-                            eprintln!("oxide: pty poll failed: {err}");
+                            eprintln!("omnipty: pty poll failed: {err}");
                             break 'event_loop;
                         }
                     }
@@ -374,13 +374,13 @@ impl<L: EventListener + Send + 'static> EventLoop<L> {
                             if event.readable
                                 && let Err(err) = self.pty_read(&mut state, &mut buf)
                             {
-                                eprintln!("oxide: pty read failed: {err}");
+                                eprintln!("omnipty: pty read failed: {err}");
                                 break 'event_loop;
                             }
                             if event.writable
                                 && let Err(err) = self.pty_write(&mut state)
                             {
-                                eprintln!("oxide: pty write failed: {err}");
+                                eprintln!("omnipty: pty write failed: {err}");
                                 break 'event_loop;
                             }
                         }
@@ -392,7 +392,7 @@ impl<L: EventListener + Send + 'static> EventLoop<L> {
                 if needs_write != interest.writable {
                     interest.writable = needs_write;
                     if let Err(err) = self.pty.reregister(&self.poll, interest, poll_opts) {
-                        eprintln!("oxide: pty reregistration failed: {err}");
+                        eprintln!("omnipty: pty reregistration failed: {err}");
                         break 'event_loop;
                     }
                 }

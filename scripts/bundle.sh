@@ -1,5 +1,5 @@
 #!/bin/bash
-# Assemble Oxide.app from the release binary.
+# Assemble OmniPTY.app from the release binary.
 #
 #   scripts/bundle.sh              build + bundle + ad-hoc sign
 #   SIGN_ID="Developer ID Application: ..." scripts/bundle.sh   real signature
@@ -7,28 +7,28 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-APP="$ROOT/target/Oxide.app"
-BIN="$ROOT/target/release/oxide"
+APP="$ROOT/target/OmniPTY.app"
+BIN="$ROOT/target/release/omnipty"
 SIGN_ID="${SIGN_ID:--}"
 
 cargo build --release
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/oxide"
+cp "$BIN" "$APP/Contents/MacOS/omnipty"
 
 # Icon: source artwork -> 1024 master -> .iconset -> .icns
 if [[ ! -f "$ROOT/assets/icon_1024.png" ]]; then
   python3 "$ROOT/assets/prepare_icon.py"
 fi
-ICONSET="$ROOT/target/oxide.iconset"
+ICONSET="$ROOT/target/omnipty.iconset"
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET"
 for size in 16 32 128 256 512; do
   sips -z $size $size "$ROOT/assets/icon_1024.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
   sips -z $((size * 2)) $((size * 2)) "$ROOT/assets/icon_1024.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
 done
-iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/oxide.icns"
+iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/omnipty.icns"
 
 VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -37,15 +37,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>dev.bobbycoleman.oxide</string>
+	<string>dev.bobbycoleman.omnipty</string>
 	<key>CFBundleName</key>
-	<string>Oxide</string>
+	<string>OmniPTY</string>
 	<key>CFBundleDisplayName</key>
-	<string>Oxide</string>
+	<string>OmniPTY</string>
 	<key>CFBundleExecutable</key>
-	<string>oxide</string>
+	<string>omnipty</string>
 	<key>CFBundleIconFile</key>
-	<string>oxide</string>
+	<string>omnipty</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -59,15 +59,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 	<!-- Without these, macOS shows an unattributed prompt for the protected
 	     folders and the grant is not reliably recorded against the app. -->
 	<key>NSDesktopFolderUsageDescription</key>
-	<string>Oxide needs access to show your Desktop in the file tree and to run commands there.</string>
+	<string>OmniPTY needs access to show your Desktop in the file tree and to run commands there.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
-	<string>Oxide needs access to show your Documents in the file tree and to run commands there.</string>
+	<string>OmniPTY needs access to show your Documents in the file tree and to run commands there.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
-	<string>Oxide needs access to show your Downloads in the file tree and to run commands there.</string>
+	<string>OmniPTY needs access to show your Downloads in the file tree and to run commands there.</string>
 	<key>NSRemovableVolumesUsageDescription</key>
-	<string>Oxide needs access to removable volumes to browse and run commands on them.</string>
+	<string>OmniPTY needs access to removable volumes to browse and run commands on them.</string>
 	<key>NSNetworkVolumesUsageDescription</key>
-	<string>Oxide needs access to network volumes to browse and run commands on them.</string>
+	<string>OmniPTY needs access to network volumes to browse and run commands on them.</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 </dict>

@@ -1,35 +1,35 @@
 <p align="center">
-  <img src="assets/icon_1024.png" width="176" alt="Oxide icon — a terminal prompt in a rusting ring" />
+  <img src="assets/icon_1024.png" width="176" alt="OmniPTY icon — a terminal prompt in a rusting ring" />
 </p>
 
-<h1 align="center">Oxide Terminal</h1>
+<h1 align="center">OmniPTY</h1>
+<p align="center"><em>Formerly Oxide. Installed copies update themselves; see <a href="#renamed-from-oxide">the note below</a>.</em></p>
 <p align="center">
   <strong>The tools you'd normally bolt onto your terminal, built in.</strong><br/>
   A native terminal for macOS and Linux, written entirely in Rust.<br/>
-  <em>Rust is iron oxide. It's a whole thing.</em>
 </p>
 
 <p align="center">
-  <a href="https://oxideterminal.com">Website</a> ·
-  <a href="https://oxideterminal.com/docs/">Docs</a> ·
-  <a href="https://oxideterminal.com/changelog/">Changelog</a> ·
-  <a href="https://oxideterminal.com/compare/">Compare</a> ·
+  <a href="https://omnipty.com">Website</a> ·
+  <a href="https://omnipty.com/docs/">Docs</a> ·
+  <a href="https://omnipty.com/changelog/">Changelog</a> ·
+  <a href="https://omnipty.com/compare/">Compare</a> ·
   <a href="https://discord.gg/APV9FYGgeh">Discord</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/oxide-terminal/oxide/releases/latest"><img src="https://img.shields.io/github/v/release/oxide-terminal/oxide?color=e2725b" alt="Latest release" /></a>
-  <a href="https://github.com/oxide-terminal/oxide/actions/workflows/ci.yml"><img src="https://github.com/oxide-terminal/oxide/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/oxide-terminal/oxide" alt="MIT license" /></a>
+  <a href="https://github.com/omnipty/omnipty/releases/latest"><img src="https://img.shields.io/github/v/release/omnipty/omnipty?color=e2725b" alt="Latest release" /></a>
+  <a href="https://github.com/omnipty/omnipty/actions/workflows/ci.yml"><img src="https://github.com/omnipty/omnipty/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/omnipty/omnipty" alt="MIT license" /></a>
   <a href="https://discord.gg/APV9FYGgeh"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Join the Discord" /></a>
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/main.webp" alt="Oxide Terminal: the file tree drawer with its workspaces panel, two tabs above three split panes running git status, cargo test and cargo run, and a git-aware status bar" />
+  <img src="assets/screenshots/main.webp" alt="OmniPTY: the file tree drawer with its workspaces panel, two tabs above three split panes running git status, cargo test and cargo run, and a git-aware status bar" />
 </p>
 
 If your terminal is really a terminal plus a stack of add-ons — tmux for splits and sessions,
-a file manager in another pane, a prompt framework, a copy-mode plugin — Oxide builds those in.
+a file manager in another pane, a prompt framework, a copy-mode plugin — OmniPTY builds those in.
 A file tree you drive like vim sits beside your panes and follows your shell's `cd`. Tabs and
 splits group into named workspaces you can pin, so they reopen with the same layout and
 directories. Copy mode puts vim keys on the scrollback, and the status bar knows your git
@@ -39,38 +39,54 @@ you save.
 Under the hood, it's GPU-rendered on [GPUI](https://www.gpui.rs) (Zed's UI framework), with
 [`alacritty_terminal`](https://crates.io/crates/alacritty_terminal) (Alacritty's PTY + VT parser)
 doing the emulation, so vim, htop, and tmux itself still just work. No account, no AI, no
-telemetry: the only thing Oxide asks the network is whether there's a newer release.
+telemetry: the only thing OmniPTY asks the network is whether there's a newer release.
+
+## Renamed from Oxide
+
+Oxide became OmniPTY in 0.9.0 (there's an unrelated company called Oxide, and the
+name was getting in the way). Nothing to do if you already had it installed:
+
+- The in-app updater carries an installed Oxide across: it lands as `OmniPTY.app`
+  with your config, themes and pinned workspaces intact. A Dock icon pinned to the
+  old `Oxide.app` path needs re-adding.
+- `brew upgrade --cask oxide-terminal` installs OmniPTY too; afterwards, switch to
+  the new cask: `brew uninstall --cask oxide-terminal && brew install --cask omnipty/tap/omnipty`.
+- `~/.config/oxide/config.toml` and `~/.cache/oxide` are copied to `omnipty`
+  directories on first launch; the originals are left alone.
+- `$OXIDE_SESSION` and `$OXIDE_VERSION` are still exported through 0.9.x; switch
+  dotfiles to `$OMNIPTY_SESSION` / `$OMNIPTY_VERSION`.
+- `theme = "oxide"` keeps working; the palette is now also called `omnipty`.
 
 ## Install
 
 **macOS**
 
 ```sh
-brew install --cask oxide-terminal/tap/oxide-terminal
+brew install --cask omnipty/tap/omnipty
 ```
 
-Or [download the DMG](https://downloads.oxideterminal.com/oxide/latest/Oxide.dmg)
-and drag Oxide to Applications. Builds are Developer ID signed and notarized, so there's no
-right-click-to-open dance, and Oxide keeps itself up to date afterwards — it checks on launch
-and every six hours, or on demand via **Oxide → Check for Updates…** Updates are signed, and
-Oxide only installs one whose signature matches the key it was built with.
+Or [download the DMG](https://downloads.omnipty.com/omnipty/latest/OmniPTY.dmg)
+and drag OmniPTY to Applications. Builds are Developer ID signed and notarized, so there's no
+right-click-to-open dance, and OmniPTY keeps itself up to date afterwards — it checks on launch
+and every six hours, or on demand via **OmniPTY → Check for Updates…** Updates are signed, and
+OmniPTY only installs one whose signature matches the key it was built with.
 
 **Linux** (Wayland or X11, x86_64)
 
 ```sh
 # Arch and derivatives: a pacman package from the PKGBUILD in this repo
 # (an AUR package will follow once AUR registration reopens)
-git clone https://github.com/oxide-terminal/oxide.git
-cd oxide/packaging/aur/oxide-terminal-bin && makepkg -si
+git clone https://github.com/omnipty/omnipty.git
+cd omnipty/packaging/aur/omnipty-bin && makepkg -si
 
 # any distro: the release tarball
-tar xzf oxide-linux-x86_64.tar.gz
-cd oxide-*-linux-x86_64 && ./install.sh                # into ~/.local, no root
+tar xzf omnipty-linux-x86_64.tar.gz
+cd omnipty-*-linux-x86_64 && ./install.sh                # into ~/.local, no root
 ```
 
-[Download the tarball](https://downloads.oxideterminal.com/oxide/latest/oxide-linux-x86_64.tar.gz); older versions are on the
-[releases page](https://github.com/oxide-terminal/oxide/releases).
-`install.sh` puts `oxide` on your PATH and adds the launcher entry and icon;
+[Download the tarball](https://downloads.omnipty.com/omnipty/latest/omnipty-linux-x86_64.tar.gz); older versions are on the
+[releases page](https://github.com/omnipty/omnipty/releases).
+`install.sh` puts `omnipty` on your PATH and adds the launcher entry and icon;
 `--prefix /usr/local` (with sudo) installs system-wide, `--uninstall` removes it.
 Installed copies announce a newer release in the top-right corner; `git pull` and
 `makepkg -si` again, or a fresh tarball, does the update.
@@ -83,14 +99,14 @@ Installed copies announce a newer release in the top-right corner; `git pull` an
 - zsh or bash for the built-in prompt and shell integration. Other shells run fine and keep
   their own prompt.
 
-Oxide never writes to your dotfiles. Full instructions are in the
-[install docs](https://oxideterminal.com/docs/install/).
+OmniPTY never writes to your dotfiles. Full instructions are in the
+[install docs](https://omnipty.com/docs/install/).
 
 ## A closer look
 
 <p align="center">
-  <img src="assets/screenshots/demo.webp" alt="A minute in Oxide: the file tree driven from the keyboard, a markdown preview, a path sent from the tree to the prompt, a file dragged into a directory, the file finder opening Neovim, splits, tabs, the command palette and theme picker, and workspaces" /><br/>
-  <sub><b>A minute in Oxide</b> — the tree, a markdown preview, the file finder, splits, tabs, the palette and theme picker, workspaces.</sub>
+  <img src="assets/screenshots/demo.webp" alt="A minute in OmniPTY: the file tree driven from the keyboard, a markdown preview, a path sent from the tree to the prompt, a file dragged into a directory, the file finder opening Neovim, splits, tabs, the command palette and theme picker, and workspaces" /><br/>
+  <sub><b>A minute in OmniPTY</b> — the tree, a markdown preview, the file finder, splits, tabs, the palette and theme picker, workspaces.</sub>
 </p>
 
 <table>
@@ -99,14 +115,14 @@ Oxide never writes to your dotfiles. Full instructions are in the
     <td width="50%"><img src="assets/screenshots/command-palette.webp" alt="The command palette listing every action, each with its key binding" /><br/><sub><b>Command palette</b> (<code>cmd-shift-p</code>) — every action, fuzzy-searchable, with its binding.</sub></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshots/theme-picker.webp" alt="The theme picker listing presets with colour swatches, the window repainted in the selected oxide theme" /><br/><sub><b>Theme picker</b> (<code>cmd-alt-t</code>) — repaints the whole window as you move through it.</sub></td>
+    <td><img src="assets/screenshots/theme-picker.webp" alt="The theme picker listing presets with colour swatches, the window repainted in the selected omnipty theme" /><br/><sub><b>Theme picker</b> (<code>cmd-alt-t</code>) — repaints the whole window as you move through it.</sub></td>
     <td><img src="assets/screenshots/rename-tab.webp" alt="The rename tab prompt, with the tab bar and file tree behind it" /><br/><sub><b>Rename a tab</b> with <code>ctrl-w ,</code> or a double-click; an empty name restores the automatic title.</sub></td>
   </tr>
 </table>
 
 ## Features
 
-The short tour. Every feature has a page in the [docs](https://oxideterminal.com/docs/).
+The short tour. Every feature has a page in the [docs](https://omnipty.com/docs/).
 
 - **Real terminal** — full VT emulation via Alacritty's parser: truecolor, wide glyphs and
   combining marks, bracketed paste, mouse reporting (SGR), alternate-screen scrolling, OSC 8
@@ -142,12 +158,12 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
   `n`/`N`, `v` / `V` / `ctrl-v` visual selection, `y` to yank and leave. Nothing typed
   reaches the shell until you `esc`.
 - **Prompt jumping** — `cmd-↑`/`cmd-↓` hop between previous prompts in scrollback.
-- **SSH awareness** — Oxide watches the foreground process: an `ssh` shows
+- **SSH awareness** — OmniPTY watches the foreground process: an `ssh` shows
   `ssh: host` in the status bar, and `[[ssh.hosts]]` patterns give a host an accent colour
   on the pane border so a production box is visibly red. The process name also titles
   the tab (`vim`, `cargo`, `ssh prod-web`).
 - **Command awareness** — the shell integration's OSC 133 markers are read straight off the
-  PTY, so Oxide knows what's running, how long it took, and whether it failed: elapsed time
+  PTY, so OmniPTY knows what's running, how long it took, and whether it failed: elapsed time
   in the status bar, activity dots on tabs, a red flash on a background pane that failed, a
   failure gutter you can click to jump to the command, and desktop notifications for long or
   failed commands in panes you aren't watching (click to focus the pane).
@@ -161,7 +177,7 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
   dotfiles (ZDOTDIR shim for zsh, `--init-file` for bash), with OSC 133 semantic prompt
   markers. Or set `prompt.enabled = false` and keep your starship/p10k prompt as-is.
 - **Themes** — `catppuccin-mocha`, `catppuccin-latte`, `gruvbox-dark`, `tokyonight`,
-  `dracula`, `nord`, `solarized-dark`, and `oxide` (rust-toned, naturally), plus the
+  `dracula`, `nord`, `solarized-dark`, and `omnipty` (rust-toned, naturally), plus the
   [Omarchy](https://omarchy.org/manual/themes/) set: `kanagawa`, `everforest`,
   `osaka-jade`, `matte-black`, `hackerman`, `rose-pine-dawn`, and a dozen more —
   25 presets in all. Any color
@@ -177,7 +193,7 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
 - **Command palette** — `cmd-shift-p` lists every action with its binding, fuzzy-searchable.
   Every text field edits like the rest of the system: `opt-←/→` by word, `opt-delete` a word
   back, `cmd-←/→` to the ends (`ctrl` on Linux).
-- **Menus on Linux** — a ☰ button in the top-left corner holds the same Oxide / File /
+- **Menus on Linux** — a ☰ button in the top-left corner holds the same OmniPTY / File /
   Edit / View / Window / Help menus macOS puts in the menu bar, shortcuts included
   (`app::menu` opens it from the keyboard).
 - **Configurable keys** — a `[keymap]` table in config.toml rebinds anything; typos get a
@@ -216,7 +232,7 @@ The short tour. Every feature has a page in the [docs](https://oxideterminal.com
 
 ## Keys
 
-The everyday ones. The [full keymap](https://oxideterminal.com/docs/keybindings/) lists every
+The everyday ones. The [full keymap](https://omnipty.com/docs/keybindings/) lists every
 action id, and a `[keymap]` table in your config rebinds any of them.
 
 The `ctrl-w` chords are the same everywhere. Where macOS uses `cmd`, Linux uses
@@ -311,9 +327,9 @@ The `ctrl-w` chords are the same everywhere. Where macOS uses `cmd`, Linux uses
 
 ## Configuration
 
-`~/.config/oxide/config.toml` — a fully commented default is generated on first run.
+`~/.config/omnipty/config.toml` — a fully commented default is generated on first run.
 Font, colors, keys, and notifications apply live; `[shell]` and `[prompt]` apply to new
-sessions. [Every option, with defaults →](https://oxideterminal.com/docs/configuration/)
+sessions. [Every option, with defaults →](https://omnipty.com/docs/configuration/)
 
 ```toml
 [font]
@@ -321,7 +337,7 @@ family = "JetBrainsMono Nerd Font Mono"
 size   = 14.0
 
 [colors]
-preset = "oxide"              # or override any color individually
+preset = "omnipty"              # or override any color individually
 follow_system = true          # ...or switch between preset_dark / preset_light with the system
 preset_light  = "catppuccin-latte"
 
@@ -387,26 +403,26 @@ sudo pacman -S --needed base-devel fontconfig freetype2 libxkbcommon libxkbcommo
 ```
 
 ```sh
-git clone https://github.com/oxide-terminal/oxide.git
-cd oxide
+git clone https://github.com/omnipty/omnipty.git
+cd omnipty
 cargo run                     # development
 
 # macOS
-./scripts/bundle.sh           # release build -> target/Oxide.app (ad-hoc signed)
-cp -R target/Oxide.app /Applications/
-sudo cp scripts/oxide-cli /usr/local/bin/oxide && sudo chmod +x /usr/local/bin/oxide   # optional `oxide [dir]` shim
+./scripts/bundle.sh           # release build -> target/OmniPTY.app (ad-hoc signed)
+cp -R target/OmniPTY.app /Applications/
+sudo cp scripts/omnipty-cli /usr/local/bin/omnipty && sudo chmod +x /usr/local/bin/omnipty   # optional `omnipty [dir]` shim
 
 # Linux
-./scripts/linux-package.sh    # release build -> target/oxide-<version>-linux-<arch>.tar.gz
-tar xzf target/oxide-*-linux-*.tar.gz -C /tmp && /tmp/oxide-*-linux-*/install.sh
+./scripts/linux-package.sh    # release build -> target/omnipty-<version>-linux-<arch>.tar.gz
+tar xzf target/omnipty-*-linux-*.tar.gz -C /tmp && /tmp/omnipty-*-linux-*/install.sh
 ```
 
-The `oxide` command takes a directory, `-e <command> [args...]` to run a
+The `omnipty` command takes a directory, `-e <command> [args...]` to run a
 program in the first pane instead of the shell, `--app-id <id>` for the
 window's Wayland app-id / X11 class, and `--no-startup-commands`. The first
 two are what `xdg-terminal-exec` passes, and the `.desktop` entry declares
-them, so on Linux Oxide can be the default terminal: on Omarchy, put
-`oxide.desktop` first in `~/.config/xdg-terminals.list`.
+them, so on Linux OmniPTY can be the default terminal: on Omarchy, put
+`omnipty.desktop` first in `~/.config/xdg-terminals.list`.
 
 The first build compiles GPUI — expect several minutes. A `cargo run` binary is a debug
 build: fine for poking at a change, but a full-screen program like nvim will feel sluggish
@@ -454,15 +470,15 @@ with zero shell cooperation. Platform differences are confined to a handful of
 ## Community
 
 Questions, ideas, or just want to see what's coming? Join the
-[Oxide Terminal Discord](https://discord.gg/APV9FYGgeh). Bugs and feature requests go in
-[issues](https://github.com/oxide-terminal/oxide/issues/new) — **Help → Report an Issue** in
-the menu bar (the ☰ menu on Linux), or *Report an Issue* in the command palette, goes to the same place. Wondering how Oxide stacks up against iTerm2, Ghostty,
-kitty, WezTerm, Alacritty, or Warp? There's an [honest comparison](https://oxideterminal.com/compare/).
+[OmniPTY Discord](https://discord.gg/APV9FYGgeh). Bugs and feature requests go in
+[issues](https://github.com/omnipty/omnipty/issues/new) — **Help → Report an Issue** in
+the menu bar (the ☰ menu on Linux), or *Report an Issue* in the command palette, goes to the same place. Wondering how OmniPTY stacks up against iTerm2, Ghostty,
+kitty, WezTerm, Alacritty, or Warp? There's an [honest comparison](https://omnipty.com/compare/).
 
-If Oxide earns a place in your dock, you can [sponsor it on GitHub](https://github.com/sponsors/oxide-terminal) or [buy me a coffee](https://www.buymeacoffee.com/bobbycoleman).
+If OmniPTY earns a place in your dock, you can [sponsor it on GitHub](https://github.com/sponsors/omnipty) or [buy me a coffee](https://www.buymeacoffee.com/bobbycoleman).
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
 
-Oxide builds on [GPUI](https://www.gpui.rs) and [`alacritty_terminal`](https://crates.io/crates/alacritty_terminal), both Apache-2.0.
+OmniPTY builds on [GPUI](https://www.gpui.rs) and [`alacritty_terminal`](https://crates.io/crates/alacritty_terminal), both Apache-2.0.

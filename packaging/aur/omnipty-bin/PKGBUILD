@@ -1,15 +1,15 @@
 # Maintainer: Bobby Coleman <bobbycoleman.dev@gmail.com>
 #
-# Binary package from the release tarball on downloads.oxideterminal.com
+# Binary package from the release tarball on downloads.omnipty.com
 # (mirrored on the GitHub release). scripts/release-linux.sh bumps pkgver,
 # the URL and the checksum after each release; regenerate .SRCINFO with
 # `makepkg --printsrcinfo > .SRCINFO` before pushing to the AUR.
-pkgname=oxide-terminal-bin
+pkgname=omnipty-bin
 pkgver=0.8.1
 pkgrel=1
 pkgdesc="A native, GPU-rendered terminal emulator with a vim-driven file tree drawer, splits and workspaces"
 arch=('x86_64')
-url="https://oxideterminal.com"
+url="https://omnipty.com"
 license=('MIT')
 depends=('gcc-libs' 'glibc' 'libxcb' 'libxau' 'libxdmcp' 'libxkbcommon' 'libxkbcommon-x11'
          'wayland' 'vulkan-icd-loader' 'libnotify' 'hicolor-icon-theme')
@@ -18,18 +18,20 @@ optdepends=('vulkan-radeon: Vulkan driver for AMD GPUs'
             'nvidia-utils: Vulkan driver for NVIDIA GPUs'
             'vulkan-swrast: software Vulkan, for machines with no GPU driver'
             'xdg-utils: open links in the browser')
-provides=('oxide-terminal')
-conflicts=('oxide-terminal')
-source=("https://downloads.oxideterminal.com/oxide/${pkgver}/oxide-${pkgver}-linux-x86_64.tar.gz")
+provides=('omnipty')
+# The package's name before the rename; pacman swaps it out for this one.
+conflicts=('omnipty' 'oxide-terminal-bin')
+replaces=('oxide-terminal-bin')
+source=("https://downloads.omnipty.com/omnipty/${pkgver}/omnipty-${pkgver}-linux-x86_64.tar.gz")
 sha256sums=('987de59b991eb06374c3e71eb10f4342abcb26f738f2acb42e7a33b346b1cf45')
 
 package() {
-  cd "oxide-${pkgver}-linux-x86_64"
-  install -Dm755 oxide "$pkgdir/usr/bin/oxide"
-  install -Dm644 oxide.desktop "$pkgdir/usr/share/applications/oxide.desktop"
-  for png in icons/hicolor/*/apps/oxide.png; do
+  cd "omnipty-${pkgver}-linux-x86_64"
+  install -Dm755 omnipty "$pkgdir/usr/bin/omnipty"
+  install -Dm644 omnipty.desktop "$pkgdir/usr/share/applications/omnipty.desktop"
+  for png in icons/hicolor/*/apps/omnipty.png; do
     size="$(basename "$(dirname "$(dirname "$png")")")"
-    install -Dm644 "$png" "$pkgdir/usr/share/icons/hicolor/$size/apps/oxide.png"
+    install -Dm644 "$png" "$pkgdir/usr/share/icons/hicolor/$size/apps/omnipty.png"
   done
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

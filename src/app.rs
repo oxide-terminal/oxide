@@ -188,13 +188,13 @@ enum AppMenuCorner {
 }
 
 /// The Linux stand-in for the macOS menu bar: a popover under the ☰ button
-/// in the top-left corner. `open` is which top-level menu (Oxide, File, …)
+/// in the top-left corner. `open` is which top-level menu (OmniPTY, File, …)
 /// is expanded in the right-hand column; hovering a heading switches it.
 struct AppMenu {
     open: usize,
 }
 
-pub struct Oxide {
+pub struct OmniPTY {
     config: Rc<Config>,
     theme: Rc<Theme>,
     tree: gpui::Entity<FileTree>,
@@ -509,11 +509,7 @@ pub fn home_dir() -> Option<PathBuf> {
 }
 
 fn window_state_path() -> Option<PathBuf> {
-    Some(
-        directories::BaseDirs::new()?
-            .home_dir()
-            .join(".cache/oxide/window.txt"),
-    )
+    Some(crate::paths::cache_dir().join("window.txt"))
 }
 
 pub fn load_window_bounds() -> Option<gpui::Bounds<gpui::Pixels>> {
@@ -574,7 +570,7 @@ fn shell_quote(path: &Path) -> String {
 
 /// Show an image file and wait for a key: what an image preview pane runs.
 /// Nothing but `/bin/sh` and `base64` is needed, because the terminal it
-/// prints to is Oxide. `fit` scales the picture down to the pane; without
+/// prints to is OmniPTY. `fit` scales the picture down to the pane; without
 /// it the picture is drawn at its own size, never blown up.
 fn image_preview_command(path: &Path, fit: bool) -> String {
     let sizing = if fit { ";width=100%%;height=100%%" } else { "" };
@@ -683,7 +679,7 @@ fn editor_command(
     {
         let body = editor_snippet("\"$p\"", at, override_cmd).replace('\'', "'\\''");
         return format!(
-            "/bin/sh -c 'f=\"$HOME/.cache/oxide/edit/{name}\"; p=$(cat \"$f\"); rm -f \"$f\"; {body}'"
+            "/bin/sh -c 'f=\"$HOME/.cache/omnipty/edit/{name}\"; p=$(cat \"$f\"); rm -f \"$f\"; {body}'"
         );
     }
     // Otherwise the path goes to /bin/sh as an argument rather than
@@ -691,7 +687,7 @@ fn editor_command(
     // quotes and the outer token stays a plain single-quoted string — which
     // fish, csh, and nushell all agree on.
     let body = editor_snippet("\"$1\"", at, override_cmd).replace('\'', "'\\''");
-    format!("/bin/sh -c '{body}' oxide {quoted}")
+    format!("/bin/sh -c '{body}' omnipty {quoted}")
 }
 
 /// Characters that no single quoting style survives across every shell at
@@ -707,7 +703,7 @@ fn path_needs_indirection(path: &Path) -> bool {
         .any(|b| matches!(b, b'\'' | b'\\' | b'!'))
 }
 
-impl Oxide {
+impl OmniPTY {
     pub fn new(
         config: Config,
         config_error: Option<String>,
@@ -720,7 +716,7 @@ impl Oxide {
         let config = Rc::new(config);
         let dark_appearance = appearance_is_dark(window.appearance());
         let theme = Rc::new(Theme::resolve(&config.colors, dark_appearance));
-        // `oxide <dir>` (or the CLI shim) starts rooted at that directory,
+        // `omnipty <dir>` (or the CLI shim) starts rooted at that directory,
         // else where it was run from (what `xdg-terminal-exec --dir` sets);
         // otherwise home. See `Cli::working_directory`.
         let cwd = cwd_override
@@ -800,7 +796,7 @@ impl Oxide {
             app_menu: None,
             app_icon: std::sync::Arc::new(gpui::Image::from_bytes(
                 gpui::ImageFormat::Png,
-                include_bytes!("../assets/linux/icons/hicolor/256x256/apps/oxide.png").to_vec(),
+                include_bytes!("../assets/linux/icons/hicolor/256x256/apps/omnipty.png").to_vec(),
             )),
             panes: HashMap::new(),
             next_pane_id: 0,
@@ -936,7 +932,7 @@ impl Oxide {
                         if manual {
                             this.toast(
                                 ToastKind::Info,
-                                format!("Oxide is up to date (v{})", env!("CARGO_PKG_VERSION")),
+                                format!("OmniPTY is up to date (v{})", env!("CARGO_PKG_VERSION")),
                                 cx,
                             );
                         }
@@ -1919,7 +1915,7 @@ impl Oxide {
         let Some((path, code)) = crate::changelog::write_rendered(self.tab_columns(cx)) else {
             self.toast(
                 ToastKind::Error,
-                "couldn't write the changelog to ~/.cache/oxide".into(),
+                "couldn't write the changelog to ~/.cache/omnipty".into(),
                 cx,
             );
             return;
@@ -2307,7 +2303,7 @@ impl Oxide {
                 if notifications::should_notify(&self.config.notifications, finished) {
                     let route = self.route_for(id);
                     notifications::post(
-                        "Oxide",
+                        "OmniPTY",
                         &notifications::command_summary(label, *exit, *duration),
                         Some(route),
                     );
@@ -2332,7 +2328,7 @@ impl Oxide {
             }
             TerminalEvent::Notify { title, body } => {
                 let route = self.pane_id_of(emitter).map(|id| self.route_for(id));
-                notifications::post(title.as_deref().unwrap_or("Oxide"), body, route);
+                notifications::post(title.as_deref().unwrap_or("OmniPTY"), body, route);
             }
             TerminalEvent::OpenPath { path, line, col } => {
                 let (path, at) = (path.clone(), line.map(|l| (l, *col)));
@@ -2477,7 +2473,7 @@ impl Oxide {
         cx.notify();
     }
 
-    /// The shell that will run anything Oxide types at a prompt.
+    /// The shell that will run anything OmniPTY types at a prompt.
     fn shell_program(&self) -> String {
         crate::terminal::session::resolve_shell(self.config.shell.program.as_deref())
     }
@@ -3112,7 +3108,7 @@ impl Oxide {
                         div()
                             .text_size(px(20.0))
                             .font_weight(gpui::FontWeight::BOLD)
-                            .child("Oxide"),
+                            .child("OmniPTY"),
                     )
                     .child(
                         div()
@@ -3931,7 +3927,7 @@ impl Oxide {
         self.recent_files.retain(|p| p != path);
         self.recent_files.push_front(path.to_path_buf());
         self.recent_files.truncate(30);
-        // A picture isn't something to edit: Oxide can show it.
+        // A picture isn't something to edit: OmniPTY can show it.
         if self.config.images.enabled
             && let Some(size) = crate::terminal::images::file_size(path)
         {
@@ -3945,7 +3941,7 @@ impl Oxide {
             self.tree
                 .update(cx, |tree, cx| tree.reveal(path.to_path_buf(), cx));
             self.toast(ToastKind::Info,
-                "shell integration is off, so Oxide can't ask the shell for $EDITOR — revealed in the tree instead".into(),
+                "shell integration is off, so OmniPTY can't ask the shell for $EDITOR — revealed in the tree instead".into(),
                 cx,
             );
             return;
@@ -6129,10 +6125,10 @@ fn set_window_blur(window: &Window, on: bool) {
     }
 }
 
-/// Open an Oxide window: shared by startup and the NewWindow action.
+/// Open an OmniPTY window: shared by startup and the NewWindow action.
 /// `command` is the `-e` program for the first pane, only ever set for the
 /// window a launch opens; windows made from inside the app get a shell.
-pub fn open_oxide_window(
+pub fn open_omnipty_window(
     config: Config,
     config_error: Option<String>,
     cwd: Option<PathBuf>,
@@ -6147,12 +6143,12 @@ pub fn open_oxide_window(
     // none anyway), so the window is always the bare content.
     let titlebar = match config.window.titlebar {
         TitlebarMode::Hidden if cfg!(target_os = "macos") => gpui::TitlebarOptions {
-            title: Some("oxide".into()),
+            title: Some("omnipty".into()),
             appears_transparent: true,
             traffic_light_position: Some(gpui::point(px(12.0), px(10.0))),
         },
         _ => gpui::TitlebarOptions {
-            title: Some("oxide".into()),
+            title: Some("omnipty".into()),
             appears_transparent: false,
             traffic_light_position: None,
         },
@@ -6175,19 +6171,19 @@ pub fn open_oxide_window(
                 crate::cli::cli()
                     .app_id
                     .clone()
-                    .unwrap_or_else(|| "oxide".into()),
+                    .unwrap_or_else(|| "omnipty".into()),
             ),
             ..Default::default()
         },
         |window, cx| {
-            cx.new(|cx| Oxide::new(config, config_error, cwd, command, restore, window, cx))
+            cx.new(|cx| OmniPTY::new(config, config_error, cwd, command, restore, window, cx))
         },
     )
     .expect("failed to open window");
     cx.activate(true);
 }
 
-impl Render for Oxide {
+impl Render for OmniPTY {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Focus can move without going through our actions — clicking a pane
         // is the common case — so adopt whatever is actually focused before
@@ -6348,7 +6344,7 @@ impl Render for Oxide {
             .on_action(cx.listener(|this, _: &NewWindow, _w, cx| {
                 let cwd = this.active_pane().read(cx).cwd.clone();
                 let (config, error) = config::load();
-                open_oxide_window(config, error, cwd, None, false, cx);
+                open_omnipty_window(config, error, cwd, None, false, cx);
             }))
             .on_action(cx.listener(|this, _: &NewTab, window, cx| {
                 this.new_tab(window, cx);
@@ -6783,7 +6779,7 @@ mod edit_command_tests {
     /// base64 inside, for a path that needs quoting.
     #[test]
     fn the_image_preview_command_prints_the_file_inline() {
-        let dir = std::env::temp_dir().join(format!("oxide img'test {}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("omnipty img'test {}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("a picture.png");
         std::fs::write(&path, b"not really a png").unwrap();
@@ -6822,13 +6818,13 @@ mod edit_command_tests {
         "/usr/local/bin/nu",
     ];
 
-    /// Run the command Oxide would type for `target`, in `shell`, with an
+    /// Run the command OmniPTY would type for `target`, in `shell`, with an
     /// $EDITOR that records the path it was handed. Returns what the editor
     /// actually received, so both quoting layers are checked end to end.
     fn opened_path(shell: &str, target: &Path, label: &str) -> Result<String, String> {
         // Per-test scratch: these tests run in parallel and would otherwise
         // read each other's recorded path.
-        let dir = std::env::temp_dir().join(format!("oxide-edit-command-test-{label}"));
+        let dir = std::env::temp_dir().join(format!("omnipty-edit-command-test-{label}"));
         std::fs::create_dir_all(&dir).unwrap();
         let recorder = dir.join("fake-editor.sh");
         let record = dir.join("opened.txt");
@@ -6870,7 +6866,7 @@ mod edit_command_tests {
             .collect()
     }
 
-    /// The core guarantee: whatever Oxide types has to parse in the shell that
+    /// The core guarantee: whatever OmniPTY types has to parse in the shell that
     /// will run it, and open the right file. The Bourne one-liner is a syntax
     /// error in fish and the csh family, which is why non-POSIX shells get it
     /// via /bin/sh.
@@ -6887,7 +6883,7 @@ mod edit_command_tests {
         );
         // A space is the everyday hard case — "Application Support" and the
         // like show up in real paths constantly.
-        let target = std::env::temp_dir().join("oxide-edit-command-test/a config file.toml");
+        let target = std::env::temp_dir().join("omnipty-edit-command-test/a config file.toml");
         for shell in shells {
             match opened_path(shell, &target, "spaces") {
                 Ok(opened) => {
@@ -6900,7 +6896,7 @@ mod edit_command_tests {
 
     /// Paths containing characters no shell can quote uniformly. Split out
     /// from the test above so a failure here is unmistakably about exotic
-    /// paths in one shell, not about whether Oxide works there at all.
+    /// paths in one shell, not about whether OmniPTY works there at all.
     ///
     /// Each character here broke a real shell: `'` has no escape inside a
     /// nushell literal, fish reads `\` inside single quotes as an escape, and
@@ -6915,7 +6911,7 @@ mod edit_command_tests {
         ];
         for (label, name) in cases {
             let target = std::env::temp_dir()
-                .join("oxide-edit-command-test")
+                .join("omnipty-edit-command-test")
                 .join(name);
             for shell in installed_shells() {
                 match opened_path(shell, &target, label) {
@@ -6932,10 +6928,10 @@ mod edit_command_tests {
     /// pane that opens a hundred files does not leave a hundred files behind.
     #[test]
     fn indirection_file_is_cleaned_up_after_use() {
-        let target = std::env::temp_dir().join("oxide-edit-command-test/it's cleaned.toml");
+        let target = std::env::temp_dir().join("omnipty-edit-command-test/it's cleaned.toml");
         let command = edit_file_command(&target, "/opt/homebrew/bin/fish");
         let name = command
-            .split("/.cache/oxide/edit/")
+            .split("/.cache/omnipty/edit/")
             .nth(1)
             .and_then(|rest| rest.split('"').next())
             .expect("command should reference an indirection file")
@@ -6943,7 +6939,7 @@ mod edit_command_tests {
         let file = directories::BaseDirs::new()
             .unwrap()
             .home_dir()
-            .join(".cache/oxide/edit")
+            .join(".cache/omnipty/edit")
             .join(&name);
         assert!(
             file.exists(),
@@ -6962,7 +6958,7 @@ mod edit_command_tests {
     }
 
     /// nushell rejected `'\''` — its single-quoted literals have no escape
-    /// at all, so a quote can only ever end the string. Whatever Oxide types
+    /// at all, so a quote can only ever end the string. Whatever OmniPTY types
     /// at a non-POSIX prompt must therefore never rely on that splice; the
     /// paths that would need it go through a file instead.
     #[test]
@@ -6996,7 +6992,7 @@ mod edit_command_tests {
     /// non-POSIX shells get.
     #[test]
     fn line_numbers_reach_the_editor_in_its_own_dialect() {
-        let dir = std::env::temp_dir().join("oxide-editor-line-test");
+        let dir = std::env::temp_dir().join("omnipty-editor-line-test");
         std::fs::create_dir_all(&dir).unwrap();
         let record = dir.join("args.txt");
         for name in ["nvim", "code", "emacs", "hx", "ed"] {

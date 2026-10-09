@@ -1,5 +1,5 @@
 //! Byte-level scanner over the raw PTY stream, ahead of the VT parser. It
-//! finds what Oxide handles itself: the OSCs `osc.rs` decodes (133, 7, 9,
+//! finds what OmniPTY handles itself: the OSCs `osc.rs` decodes (133, 7, 9,
 //! 777), image transfers (kitty's `APC G`, iTerm2's OSC 1337, sixel's
 //! `DCS q`), and a few queries alacritty's parser has no answer for.
 //!
@@ -26,7 +26,7 @@ use super::sixel::{self, Sixel};
 pub enum Action {
     /// Feed these bytes of the chunk to the VT parser.
     Parse(Range<usize>),
-    /// An OSC Oxide consumes finished here.
+    /// An OSC OmniPTY consumes finished here.
     Marker(MarkerKind),
     /// A graphics command finished here.
     Graphics(GraphicsCommand),

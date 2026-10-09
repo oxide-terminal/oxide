@@ -1,13 +1,13 @@
 #!/bin/bash
-# Install (or uninstall) Oxide from the Linux release tarball.
+# Install (or uninstall) OmniPTY from the Linux release tarball.
 #
 #   ./install.sh                 into ~/.local (no root needed)
 #   sudo ./install.sh --prefix /usr/local
 #   ./install.sh --uninstall     remove what a previous run installed
 #
-# Puts the binary on PATH as `oxide`, the .desktop entry where launchers
+# Puts the binary on PATH as `omnipty`, the .desktop entry where launchers
 # look, and the icon into the hicolor theme. Arch users: prefer the AUR
-# package (oxide-terminal-bin), which does the same through pacman.
+# package (omnipty-bin), which does the same through pacman.
 set -euo pipefail
 
 PREFIX="${PREFIX:-$HOME/.local}"
@@ -23,26 +23,33 @@ while [[ $# -gt 0 ]]; do
 done
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-BIN="$PREFIX/bin/oxide"
-DESKTOP="$PREFIX/share/applications/oxide.desktop"
+BIN="$PREFIX/bin/omnipty"
+DESKTOP="$PREFIX/share/applications/omnipty.desktop"
 ICONS="$PREFIX/share/icons/hicolor"
 
 if [[ $UNINSTALL -eq 1 ]]; then
   rm -f "$BIN" "$DESKTOP"
-  for dir in "$ICONS"/*/apps; do rm -f "$dir/oxide.png"; done
+  for dir in "$ICONS"/*/apps; do rm -f "$dir/omnipty.png"; done
   command -v update-desktop-database >/dev/null && update-desktop-database "$PREFIX/share/applications" 2>/dev/null || true
   command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q "$ICONS" 2>/dev/null || true
-  echo "removed oxide from $PREFIX"
+  echo "removed omnipty from $PREFIX"
   exit 0
 fi
 
-[[ -x "$HERE/oxide" ]] || { echo "error: run this from the unpacked tarball (no ./oxide here)" >&2; exit 1; }
+[[ -x "$HERE/omnipty" ]] || { echo "error: run this from the unpacked tarball (no ./omnipty here)" >&2; exit 1; }
 
-install -Dm755 "$HERE/oxide" "$BIN"
-install -Dm644 "$HERE/oxide.desktop" "$DESKTOP"
-for png in "$HERE"/icons/hicolor/*/apps/oxide.png; do
+# An install from before the rename (0.8.x) under the same prefix.
+if [[ -e "$PREFIX/bin/oxide" ]]; then
+  rm -f "$PREFIX/bin/oxide" "$PREFIX/share/applications/oxide.desktop"
+  for dir in "$ICONS"/*/apps; do rm -f "$dir/oxide.png"; done
+  echo "removed the old oxide install from $PREFIX"
+fi
+
+install -Dm755 "$HERE/omnipty" "$BIN"
+install -Dm644 "$HERE/omnipty.desktop" "$DESKTOP"
+for png in "$HERE"/icons/hicolor/*/apps/omnipty.png; do
   size="$(basename "$(dirname "$(dirname "$png")")")"
-  install -Dm644 "$png" "$ICONS/$size/apps/oxide.png"
+  install -Dm644 "$png" "$ICONS/$size/apps/omnipty.png"
 done
 command -v update-desktop-database >/dev/null && update-desktop-database "$PREFIX/share/applications" 2>/dev/null || true
 command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -q "$ICONS" 2>/dev/null || true

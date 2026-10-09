@@ -1,20 +1,20 @@
 //! Command-line arguments, parsed once at launch.
 //!
-//! `oxide [<directory>] [--app-id <id>] [--no-startup-commands] [-e <command> [args...]]`
+//! `omnipty [<directory>] [--app-id <id>] [--no-startup-commands] [-e <command> [args...]]`
 //!
 //! `-e` and `--app-id` are what `xdg-terminal-exec` (and so Omarchy's
 //! Super+Return and TUI launchers) pass to a terminal, so supporting them
-//! lets Oxide be a system's default terminal on Linux.
+//! lets OmniPTY be a system's default terminal on Linux.
 
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
 pub const USAGE: &str = "\
-usage: oxide [<directory>] [options] [-e <command> [args...]]
+usage: omnipty [<directory>] [options] [-e <command> [args...]]
 
   <directory>              open the first pane there (default: the current directory)
   -e <command> [args...]   run this instead of the shell in the first pane; the pane closes when it exits
-  --app-id <id>            Wayland app-id / X11 class for the window (default: oxide)
+  --app-id <id>            Wayland app-id / X11 class for the window (default: omnipty)
   --no-startup-commands    restore pinned workspaces' layout without running their startup commands
   -V, --version            print the version and exit
   -h, --help               print this and exit";
@@ -41,7 +41,7 @@ pub enum Parsed {
 }
 
 /// Parse the arguments after the program name. Everything after `-e` is
-/// the command, untouched, so `oxide -e vim --help` runs vim's help rather
+/// the command, untouched, so `omnipty -e vim --help` runs vim's help rather
 /// than printing ours.
 pub fn parse<I>(args: I) -> Result<Parsed, String>
 where
@@ -100,7 +100,7 @@ pub fn install(cli: Cli) {
     CLI.set(cli).ok();
 }
 
-/// The arguments Oxide was launched with. Defaults (no flags) until `main`
+/// The arguments OmniPTY was launched with. Defaults (no flags) until `main`
 /// installs them, which keeps tests and tools independent of the process
 /// arguments.
 pub fn cli() -> &'static Cli {

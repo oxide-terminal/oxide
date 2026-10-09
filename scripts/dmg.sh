@@ -1,11 +1,11 @@
 #!/bin/bash
-# Build a signed, notarized, stapled Oxide-<version>.dmg ready for distribution.
+# Build a signed, notarized, stapled OmniPTY-<version>.dmg ready for distribution.
 #
 # Requires:
 #   - a "Developer ID Application" identity in the keychain (auto-detected,
 #     or pass SIGN_ID explicitly)
 #   - notary credentials, either (preferred, keeps the secret out of argv):
-#       xcrun notarytool store-credentials oxide-notary \
+#       xcrun notarytool store-credentials omnipty-notary \
 #         --apple-id ... --team-id ... --password <app-specific>
 #     or APPLE_ID / APPLE_TEAM_ID / APPLE_PASSWORD in the environment.
 set -euo pipefail
@@ -25,14 +25,14 @@ fi
 
 # Cargo.lock carries this package's own version. If it lags Cargo.toml the
 # build silently rewrites it, so the released commit would miss the change.
-LOCK_VERSION=$(awk '/^name = "oxide"$/{getline; gsub(/[",]/, "", $3); print $3; exit}' Cargo.lock)
+LOCK_VERSION=$(awk '/^name = "omnipty"$/{getline; gsub(/[",]/, "", $3); print $3; exit}' Cargo.lock)
 if [[ "$LOCK_VERSION" != "$VERSION" ]]; then
   echo "error: Cargo.lock says $LOCK_VERSION but Cargo.toml says $VERSION." >&2
   echo "       Run 'cargo check' to refresh the lock, then amend your release commit." >&2
   exit 1
 fi
-DMG="target/Oxide-${VERSION}.dmg"
-NOTARY_PROFILE="${NOTARY_PROFILE:-oxide-notary}"
+DMG="target/OmniPTY-${VERSION}.dmg"
+NOTARY_PROFILE="${NOTARY_PROFILE:-omnipty-notary}"
 
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application/ {print $2; exit}')}"
 [[ -n "$SIGN_ID" ]] || { echo "error: no Developer ID Application identity found" >&2; exit 1; }
@@ -56,17 +56,17 @@ echo "==> building and signing with: $SIGN_ID"
 SIGN_ID="$SIGN_ID" ./scripts/bundle.sh
 
 echo "==> notarizing the app"
-ditto -c -k --keepParent target/Oxide.app target/Oxide-notarize.zip
-notarize target/Oxide-notarize.zip
-rm -f target/Oxide-notarize.zip
-xcrun stapler staple target/Oxide.app
+ditto -c -k --keepParent target/OmniPTY.app target/OmniPTY-notarize.zip
+notarize target/OmniPTY-notarize.zip
+rm -f target/OmniPTY-notarize.zip
+xcrun stapler staple target/OmniPTY.app
 
 echo "==> building the dmg"
 STAGE=$(mktemp -d)
-cp -R target/Oxide.app "$STAGE/"
+cp -R target/OmniPTY.app "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
-hdiutil create -volname "Oxide" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+hdiutil create -volname "OmniPTY" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 rm -rf "$STAGE"
 
 echo "==> signing and notarizing the dmg"

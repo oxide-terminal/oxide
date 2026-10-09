@@ -18,7 +18,7 @@ pub fn write_rendered(width: usize) -> Option<(PathBuf, Vec<String>)> {
 }
 
 pub fn render_ansi(md: &str, width: usize) -> markdown::Rendered {
-    let mut body = String::from("# Oxide — what's new\n\n");
+    let mut body = String::from("# OmniPTY — what's new\n\n");
     // Skip everything before the first released version heading.
     for line in md
         .lines()

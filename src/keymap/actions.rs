@@ -1,11 +1,11 @@
-//! Every action Oxide can perform, with its registry row.
+//! Every action OmniPTY can perform, with its registry row.
 //!
-//! `oxide_actions!` defines the action type *and* the metadata the palette
+//! `omnipty_actions!` defines the action type *and* the metadata the palette
 //! and keymap config use, so adding an action here is the whole job. The
 //! `id` is what users type on the right-hand side of a `[keymap]` entry —
 //! it's a public name, so never rename one.
 
-use super::registry::oxide_actions;
+use super::registry::omnipty_actions;
 
 /// `App::reveal_path` lands in Finder on macOS and the default file manager
 /// on Linux; the action id keeps its historical name either way.
@@ -15,15 +15,15 @@ const REVEAL_TITLE: &str = if cfg!(target_os = "macos") {
     "Tree: Reveal in File Manager"
 };
 
-oxide_actions! {
+omnipty_actions! {
     // --- Application ---
-    Quit            => "app::quit",              "Quit Oxide",              "Application", ["exit"], Root;
-    About           => "app::about",             "About Oxide",             "Application", [], Root;
+    Quit            => "app::quit",              "Quit OmniPTY",              "Application", ["exit"], Root;
+    About           => "app::about",             "About OmniPTY",             "Application", [], Root;
     OpenSettings    => "app::settings",          "Open Settings",           "Application", ["config", "preferences"], Root;
     SelectTheme     => "app::select_theme",      "Select Theme",            "Application", ["colors", "preset"], Root;
     CommandPalette  => "app::palette",           "Command Palette",         "Application", ["commands"], Root;
     FileFinder      => "app::file_finder",       "Find File",               "Application", ["fuzzy", "open", "cmd-p"], Root;
-    Hide            => "app::hide",              "Hide Oxide",              "Application", [], Root;
+    Hide            => "app::hide",              "Hide OmniPTY",              "Application", [], Root;
     HideOthers      => "app::hide_others",       "Hide Others",             "Application", [], Root;
     OpenHelp        => "app::help",              "Open Help",               "Application", ["docs"], Root;
     ReportIssue     => "app::report_issue",      "Report an Issue",         "Application", ["bug", "github"], Root;

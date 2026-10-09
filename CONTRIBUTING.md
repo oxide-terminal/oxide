@@ -1,6 +1,6 @@
-# Contributing to Oxide
+# Contributing to OmniPTY
 
-Thanks for taking the time to contribute. Oxide is a native terminal emulator for macOS
+Thanks for taking the time to contribute. OmniPTY is a native terminal emulator for macOS
 and Linux, built in Rust on [GPUI](https://www.gpui.rs) and
 [`alacritty_terminal`](https://crates.io/crates/alacritty_terminal). This document covers
 how to get a build running, what a good pull request looks like, and what needs updating
@@ -8,7 +8,7 @@ alongside a code change.
 
 ## Before you start
 
-- **Bugs and feature requests** go in [issues](https://github.com/oxide-terminal/oxide/issues).
+- **Bugs and feature requests** go in [issues](https://github.com/omnipty/omnipty/issues).
   If you're planning a non-trivial change (new feature, config option, or anything that
   touches the architecture), open an issue first to talk it through; it saves everyone
   a rewritten PR.
@@ -41,8 +41,8 @@ sudo pacman -S --needed base-devel fontconfig freetype2 libxkbcommon libxkbcommo
 Then:
 
 ```sh
-git clone https://github.com/oxide-terminal/oxide.git
-cd oxide
+git clone https://github.com/omnipty/omnipty.git
+cd omnipty
 cargo run          # development build
 cargo test         # run the test suite
 ```
@@ -122,12 +122,12 @@ requested changes personally; they're about the code, not you.
 ## Reporting bugs
 
 Use **Help → Report an Issue** in the menu bar (the ☰ menu on Linux), *Report an Issue* in
-the command palette, or [open one directly](https://github.com/oxide-terminal/oxide/issues/new).
+the command palette, or [open one directly](https://github.com/omnipty/omnipty/issues/new).
 Include:
 
 - What you expected to happen and what happened instead.
 - Steps to reproduce, if you have them.
-- Your platform and Oxide version (**Oxide → About**, or `oxide --version`).
+- Your platform and OmniPTY version (**OmniPTY → About**, or `omnipty --version`).
 - Your shell, and anything unusual about your setup (a custom prompt, an unusual
   terminal multiplexer setup, a Wayland compositor without server-side decorations, etc.).
 

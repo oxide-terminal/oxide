@@ -58,7 +58,7 @@ pub fn sniff(bytes: &[u8]) -> Option<(u32, u32)> {
     sniff_from(Cursor::new(bytes))
 }
 
-/// The size of an image file Oxide can draw, by its extension and then its
+/// The size of an image file OmniPTY can draw, by its extension and then its
 /// header; `None` for any other file.
 pub fn file_size(path: &Path) -> Option<(u32, u32)> {
     let extension = path.extension()?.to_str()?.to_ascii_lowercase();

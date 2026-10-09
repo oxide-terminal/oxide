@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn gitignored_entries_are_flagged_not_dropped() {
-        let dir = std::env::temp_dir().join(format!("oxide-scan-ignore-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("omnipty-scan-ignore-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         // The ignore crate only honors .gitignore inside a git repo.
         std::fs::create_dir_all(dir.join(".git")).unwrap();
