@@ -475,7 +475,7 @@ Questions, ideas, or just want to see what's coming? Join the
 the menu bar (the ☰ menu on Linux), or *Report an Issue* in the command palette, goes to the same place. Wondering how OmniPTY stacks up against iTerm2, Ghostty,
 kitty, WezTerm, Alacritty, or Warp? There's an [honest comparison](https://omnipty.com/compare/).
 
-If OmniPTY earns a place in your dock, you can [sponsor it on GitHub](https://github.com/sponsors/omnipty) or [buy me a coffee](https://www.buymeacoffee.com/bobbycoleman).
+If OmniPTY earns a place in your dock, you can [sponsor it on GitHub](https://github.com/sponsors/omnipty-terminal) or [buy me a coffee](https://www.buymeacoffee.com/bobbycoleman).
 
 ## License
 
