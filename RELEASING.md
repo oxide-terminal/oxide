@@ -127,7 +127,7 @@ as one JSON string; `jq -Rs . < file.minisig` produces it):
   "version": "0.8.1",
   "pub_date": "2026-10-07T18:00:00Z",
   "notes_url": "https://omnipty.com/changelog/#v0.8.1",
-  "release_url": "https://github.com/omnipty/omnipty/releases/tag/v0.8.1",
+  "release_url": "https://github.com/omnipty-terminal/omnipty/releases/tag/v0.8.1",
   "download_url": "https://downloads.omnipty.com/omnipty/0.8.1/OmniPTY-0.8.1.dmg",
   "sha256": "<sha256 of the DMG>",
   "assets": {

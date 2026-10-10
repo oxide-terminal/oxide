@@ -18,9 +18,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/omnipty/omnipty/releases/latest"><img src="https://img.shields.io/github/v/release/omnipty/omnipty?color=e2725b" alt="Latest release" /></a>
-  <a href="https://github.com/omnipty/omnipty/actions/workflows/ci.yml"><img src="https://github.com/omnipty/omnipty/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/omnipty/omnipty" alt="MIT license" /></a>
+  <a href="https://github.com/omnipty-terminal/omnipty/releases/latest"><img src="https://img.shields.io/github/v/release/omnipty-terminal/omnipty?color=e2725b" alt="Latest release" /></a>
+  <a href="https://github.com/omnipty-terminal/omnipty/actions/workflows/ci.yml"><img src="https://github.com/omnipty-terminal/omnipty/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/omnipty-terminal/omnipty" alt="MIT license" /></a>
   <a href="https://discord.gg/APV9FYGgeh"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white" alt="Join the Discord" /></a>
 </p>
 
@@ -50,7 +50,7 @@ name was getting in the way). Nothing to do if you already had it installed:
   with your config, themes and pinned workspaces intact. A Dock icon pinned to the
   old `Oxide.app` path needs re-adding.
 - `brew upgrade --cask oxide-terminal` installs OmniPTY too; afterwards, switch to
-  the new cask: `brew uninstall --cask oxide-terminal && brew install --cask omnipty/tap/omnipty`.
+  the new cask: `brew uninstall --cask oxide-terminal && brew install --cask omnipty-terminal/tap/omnipty`.
 - `~/.config/oxide/config.toml` and `~/.cache/oxide` are copied to `omnipty`
   directories on first launch; the originals are left alone.
 - `$OXIDE_SESSION` and `$OXIDE_VERSION` are still exported through 0.9.x; switch
@@ -62,7 +62,7 @@ name was getting in the way). Nothing to do if you already had it installed:
 **macOS**
 
 ```sh
-brew install --cask omnipty/tap/omnipty
+brew install --cask omnipty-terminal/tap/omnipty
 ```
 
 Or [download the DMG](https://downloads.omnipty.com/omnipty/latest/OmniPTY.dmg)
@@ -76,7 +76,7 @@ OmniPTY only installs one whose signature matches the key it was built with.
 ```sh
 # Arch and derivatives: a pacman package from the PKGBUILD in this repo
 # (an AUR package will follow once AUR registration reopens)
-git clone https://github.com/omnipty/omnipty.git
+git clone https://github.com/omnipty-terminal/omnipty.git
 cd omnipty/packaging/aur/omnipty-bin && makepkg -si
 
 # any distro: the release tarball
@@ -85,7 +85,7 @@ cd omnipty-*-linux-x86_64 && ./install.sh                # into ~/.local, no roo
 ```
 
 [Download the tarball](https://downloads.omnipty.com/omnipty/latest/omnipty-linux-x86_64.tar.gz); older versions are on the
-[releases page](https://github.com/omnipty/omnipty/releases).
+[releases page](https://github.com/omnipty-terminal/omnipty/releases).
 `install.sh` puts `omnipty` on your PATH and adds the launcher entry and icon;
 `--prefix /usr/local` (with sudo) installs system-wide, `--uninstall` removes it.
 Installed copies announce a newer release in the top-right corner; `git pull` and
@@ -403,7 +403,7 @@ sudo pacman -S --needed base-devel fontconfig freetype2 libxkbcommon libxkbcommo
 ```
 
 ```sh
-git clone https://github.com/omnipty/omnipty.git
+git clone https://github.com/omnipty-terminal/omnipty.git
 cd omnipty
 cargo run                     # development
 
@@ -471,7 +471,7 @@ with zero shell cooperation. Platform differences are confined to a handful of
 
 Questions, ideas, or just want to see what's coming? Join the
 [OmniPTY Discord](https://discord.gg/APV9FYGgeh). Bugs and feature requests go in
-[issues](https://github.com/omnipty/omnipty/issues/new) — **Help → Report an Issue** in
+[issues](https://github.com/omnipty-terminal/omnipty/issues/new) — **Help → Report an Issue** in
 the menu bar (the ☰ menu on Linux), or *Report an Issue* in the command palette, goes to the same place. Wondering how OmniPTY stacks up against iTerm2, Ghostty,
 kitty, WezTerm, Alacritty, or Warp? There's an [honest comparison](https://omnipty.com/compare/).
 

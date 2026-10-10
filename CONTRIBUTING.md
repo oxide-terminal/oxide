@@ -8,7 +8,7 @@ alongside a code change.
 
 ## Before you start
 
-- **Bugs and feature requests** go in [issues](https://github.com/omnipty/omnipty/issues).
+- **Bugs and feature requests** go in [issues](https://github.com/omnipty-terminal/omnipty/issues).
   If you're planning a non-trivial change (new feature, config option, or anything that
   touches the architecture), open an issue first to talk it through; it saves everyone
   a rewritten PR.
@@ -41,7 +41,7 @@ sudo pacman -S --needed base-devel fontconfig freetype2 libxkbcommon libxkbcommo
 Then:
 
 ```sh
-git clone https://github.com/omnipty/omnipty.git
+git clone https://github.com/omnipty-terminal/omnipty.git
 cd omnipty
 cargo run          # development build
 cargo test         # run the test suite
@@ -122,7 +122,7 @@ requested changes personally; they're about the code, not you.
 ## Reporting bugs
 
 Use **Help → Report an Issue** in the menu bar (the ☰ menu on Linux), *Report an Issue* in
-the command palette, or [open one directly](https://github.com/omnipty/omnipty/issues/new).
+the command palette, or [open one directly](https://github.com/omnipty-terminal/omnipty/issues/new).
 Include:
 
 - What you expected to happen and what happened instead.

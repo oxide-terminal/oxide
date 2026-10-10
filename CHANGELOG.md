@@ -24,7 +24,7 @@ write for users: what changed and why it matters, not which files moved.
   dotfiles that read them before 0.10. A Dock icon pinned to the old
   `Oxide.app` path needs re-adding. Homebrew users: `brew upgrade` still
   works once, then switch casks with `brew uninstall --cask oxide-terminal
-  && brew install --cask omnipty/tap/omnipty`. The website is now
+  && brew install --cask omnipty-terminal/tap/omnipty`. The website is now
   omnipty.com; the old addresses redirect.
 - `OMNIPTY_MANIFEST_URL` points the updater at a different manifest, for
   testing a release before it's published.
