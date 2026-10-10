@@ -49,8 +49,9 @@ name was getting in the way). Nothing to do if you already had it installed:
 - The in-app updater carries an installed Oxide across: it lands as `OmniPTY.app`
   with your config, themes and pinned workspaces intact. A Dock icon pinned to the
   old `Oxide.app` path needs re-adding.
-- `brew upgrade --cask oxide-terminal` installs OmniPTY too; afterwards, switch to
-  the new cask: `brew uninstall --cask oxide-terminal && brew install --cask omnipty-terminal/tap/omnipty`.
+- Homebrew: switch to the new cask with
+  `brew uninstall --cask --force oxide-terminal && brew install --cask --adopt omnipty-terminal/tap/omnipty`.
+  `--adopt` keeps the `OmniPTY.app` the updater already put in place.
 - `~/.config/oxide/config.toml` and `~/.cache/oxide` are copied to `omnipty`
   directories on first launch; the originals are left alone.
 - `$OXIDE_SESSION` and `$OXIDE_VERSION` are still exported through 0.9.x; switch

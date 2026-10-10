@@ -24,10 +24,10 @@ write for users: what changed and why it matters, not which files moved.
   also called `omnipty`. Shells get `OMNIPTY_SESSION` and `OMNIPTY_VERSION`;
   the old `OXIDE_*` names stay exported through 0.9.x, so update any
   dotfiles that read them before 0.10. A Dock icon pinned to the old
-  `Oxide.app` path needs re-adding. Homebrew users: `brew upgrade` still
-  works once, then switch casks with `brew uninstall --cask oxide-terminal
-  && brew install --cask omnipty-terminal/tap/omnipty`. The website is now
-  omnipty.com; the old addresses redirect.
+  `Oxide.app` path needs re-adding. Homebrew users: switch casks with
+  `brew uninstall --cask --force oxide-terminal && brew install --cask
+  --adopt omnipty-terminal/tap/omnipty`. The website is now omnipty.com;
+  the old addresses redirect.
 - `OMNIPTY_MANIFEST_URL` points the updater at a different manifest, for
   testing a release before it's published.
 
