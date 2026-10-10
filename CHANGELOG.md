@@ -11,6 +11,8 @@ write for users: what changed and why it matters, not which files moved.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-10
+
 ### Changed
 
 - **Oxide is now OmniPTY.** Same terminal, new name: there's an unrelated
