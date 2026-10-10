@@ -1,5 +1,6 @@
 //! The bundled CHANGELOG.md, rendered to ANSI for paging in a terminal tab.
-//! The maintainer preamble and the empty Unreleased section are skipped.
+//! The maintainer preamble and the empty Unreleased section are skipped;
+//! an `## Upcoming` section, if there is one, leads.
 
 use std::path::PathBuf;
 
@@ -19,11 +20,20 @@ pub fn write_rendered(width: usize) -> Option<(PathBuf, Vec<String>)> {
 
 pub fn render_ansi(md: &str, width: usize) -> markdown::Rendered {
     let mut body = String::from("# OmniPTY — what's new\n\n");
-    // Skip everything before the first released version heading.
-    for line in md
-        .lines()
-        .skip_while(|l| !(l.starts_with("## [") && !l.starts_with("## [Unreleased]")))
-    {
+    // Skip everything before the first released version heading, except
+    // an Upcoming notice (which sits above Unreleased).
+    let released = |l: &str| l.starts_with("## [") && !l.starts_with("## [Unreleased]");
+    let mut skipping = true;
+    for line in md.lines() {
+        if skipping && (line == "## Upcoming" || released(line)) {
+            skipping = false;
+        }
+        if line.starts_with("## [Unreleased]") {
+            skipping = true;
+        }
+        if skipping {
+            continue;
+        }
         if line.starts_with("## ") {
             body.push_str(&line.replace(['[', ']'], ""));
         } else {
@@ -37,6 +47,16 @@ pub fn render_ansi(md: &str, width: usize) -> markdown::Rendered {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn upcoming_section_leads_and_unreleased_is_still_skipped() {
+        let md = "# Changelog\n\npreamble\n\n## Upcoming\n\n- the rename\n\n## [Unreleased]\n\n- pending\n\n## [0.8.2] - 2026-10-10\n\n- shipped\n";
+        let out = render_ansi(md, 80).text;
+        let at = |s: &str| out.find(s).unwrap_or_else(|| panic!("{s:?} missing in:\n{out}"));
+        assert!(at("Upcoming") < at("the rename") && at("the rename") < at("0.8.2 - 2026-10-10"));
+        assert!(at("0.8.2") < at("shipped"));
+        assert!(!out.contains("preamble") && !out.contains("pending"), "{out}");
+    }
 
     #[test]
     fn renders_headings_bullets_and_inline() {

@@ -29,6 +29,14 @@ write for users: what changed and why it matters, not which files moved.
 - `OMNIPTY_MANIFEST_URL` points the updater at a different manifest, for
   testing a release before it's published.
 
+## [0.8.2] - 2026-10-09
+
+### Changed
+
+- What's New opens on its own after this update (instead of the usual
+  toast), so the note above about the upcoming rename is seen once. The
+  next update goes back to the toast.
+
 ### Security
 
 - The status bar and file tree poll `git status` in whatever directory a

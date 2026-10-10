@@ -3768,7 +3768,7 @@ dependencies = [
 
 [[package]]
 name = "omnipty"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "alacritty_terminal",
  "base64",
