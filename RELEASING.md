@@ -251,7 +251,7 @@ Copies installed as Oxide (0.8.x and earlier) read
 is `oxide <version> macos-<arch>`. That bucket is frozen at the 0.9.0 bridge
 release and is never written by `release.sh`; it carries those copies to
 0.9.0, after which they update from here like everyone else. How it was set
-up is in `oxide-support/RENAME_RUNBOOK.md`. Leave it serving.
+up is in `support/RENAME_RUNBOOK.md`. Leave it serving.
 
 ## What happens after publishing
 
